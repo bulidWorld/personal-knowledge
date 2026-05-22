@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-800 antialiased;
+  }
+}
+
+@layer components {
+  .knowledge-content h1,
+  .knowledge-content h2,
+  .knowledge-content h3 {
+    @apply mt-5 mb-2 font-semibold leading-tight;
+  }
+  .knowledge-content h2 { @apply text-lg; }
+  .knowledge-content h3 { @apply text-base; }
+
+  .knowledge-content p {
+    @apply my-3;
+  }
+
+  .knowledge-content ul,
+  .knowledge-content ol {
+    @apply pl-6 my-2;
+  }
+
+  .knowledge-content li {
+    @apply my-1;
+  }
+
+  .knowledge-content pre {
+    @apply bg-slate-800 text-slate-100 p-4 rounded-lg overflow-x-auto text-sm leading-relaxed my-3;
+  }
+
+  .knowledge-content code {
+    @apply bg-slate-200 px-1.5 py-0.5 rounded text-sm font-mono text-slate-700;
+  }
+
+  .knowledge-content pre code {
+    @apply bg-transparent p-0 text-slate-100;
+  }
+
+  .knowledge-content img {
+    @apply max-w-full h-auto rounded-lg my-3 block;
+  }
+
+  .knowledge-content a {
+    @apply text-blue-600 underline underline-offset-2;
+  }
+
+  .knowledge-content blockquote {
+    @apply border-l-4 border-slate-400 pl-4 my-3 text-slate-500 italic;
+  }
+
+  .knowledge-content table {
+    @apply w-full border-collapse my-3;
+  }
+
+  .knowledge-content th,
+  .knowledge-content td {
+    @apply border border-slate-200 px-3 py-2 text-left;
+  }
+
+  .knowledge-content th {
+    @apply bg-slate-100 font-semibold;
+  }
+}
