@@ -21,12 +21,13 @@ function normalizeEntry(e: any): KnowledgeEntry {
   }
 }
 
-export function useKnowledge() {
-  const selectedCategoryId = ref<string | null>(null)
-  const searchQuery = ref('')
-  const currentPage = ref(1)
-  const pageSize = 9
+// Module-level shared state so all callers share the same refs
+const selectedCategoryId = ref<string | null>(null)
+const searchQuery = ref('')
+const currentPage = ref(1)
+const pageSize = 9
 
+export function useKnowledge() {
   const { data, refresh, status } = useAsyncData(
     'knowledge-list',
     () => {

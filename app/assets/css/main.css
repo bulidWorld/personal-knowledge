@@ -16,6 +16,7 @@
   .knowledge-content h3 {
     @apply mt-5 mb-2 font-semibold leading-tight;
   }
+  .knowledge-content h1 { @apply text-2xl; }
   .knowledge-content h2 { @apply text-lg; }
   .knowledge-content h3 { @apply text-base; }
 
@@ -23,9 +24,11 @@
     @apply my-3;
   }
 
-  .knowledge-content ul,
+  .knowledge-content ul {
+    @apply pl-6 my-2 list-disc;
+  }
   .knowledge-content ol {
-    @apply pl-6 my-2;
+    @apply pl-6 my-2 list-decimal;
   }
 
   .knowledge-content li {
