@@ -4,16 +4,21 @@ import { join } from 'node:path'
 
 let db: SqlJsDatabase | null = null
 
-const DATA_DIR = join(process.cwd(), '.data')
-const DB_PATH = join(DATA_DIR, 'knowledge.db')
+function resolveDbPath(): string {
+  const config = useRuntimeConfig()
+  if (config.dbPath) return config.dbPath as string
+  return join(process.cwd(), '.data', 'knowledge.db')
+}
 
 export async function getDb(): Promise<SqlJsDatabase> {
   if (db) return db
 
+  const dbPath = resolveDbPath()
+
   const SQL = await initSqlJs()
 
-  if (existsSync(DB_PATH)) {
-    const buffer = readFileSync(DB_PATH)
+  if (existsSync(dbPath)) {
+    const buffer = readFileSync(dbPath)
     db = new SQL.Database(buffer)
   } else {
     db = new SQL.Database()
@@ -98,10 +103,13 @@ function initTables(d: SqlJsDatabase) {
     )
   `)
 }
+
 export async function persist() {
   if (!db) return
-  if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true })
+  const dbPath = resolveDbPath()
+  const dbDir = join(dbPath, '..')
+  if (!existsSync(dbDir)) mkdirSync(dbDir, { recursive: true })
   const data = db.export()
   const buffer = Buffer.from(data)
-  writeFileSync(DB_PATH, buffer)
+  writeFileSync(dbPath, buffer)
 }

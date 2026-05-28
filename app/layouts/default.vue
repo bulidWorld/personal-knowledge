@@ -117,6 +117,49 @@
       </div>
     </Modal>
 
+    <!-- System rename dialog -->
+    <Modal :open="!!editingSystem" title="重命名系统" @close="editingSystem = null">
+      <div class="space-y-3">
+        <input
+          v-model="renameSystemName"
+          type="text"
+          placeholder="请输入系统名称"
+          class="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all"
+          @keyup.enter="doRenameSystem"
+        />
+        <div class="flex justify-end gap-2.5 pt-2">
+          <button
+            class="px-5 py-2.5 text-sm font-medium rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
+            @click="editingSystem = null"
+          >取消</button>
+          <button
+            :disabled="!renameSystemName.trim()"
+            class="px-5 py-2.5 text-sm font-medium rounded-xl bg-teal-500 text-white hover:bg-teal-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm shadow-teal-200"
+            @click="doRenameSystem"
+          >保存</button>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- System delete confirmation -->
+    <Modal :open="!!deletingSystem" title="确认删除系统" @close="deletingSystem = null">
+      <div class="space-y-4">
+        <p class="text-slate-600 text-sm">
+          确定要删除系统 <span class="font-semibold text-slate-800">"{{ deletingSystem?.name }}"</span> 吗？所有节点和连线将被一并删除，此操作不可恢复。
+        </p>
+        <div class="flex justify-end gap-2.5">
+          <button
+            class="px-5 py-2.5 text-sm font-medium rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
+            @click="deletingSystem = null"
+          >取消</button>
+          <button
+            class="px-5 py-2.5 text-sm font-medium rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors shadow-sm shadow-red-200"
+            @click="confirmDeleteSystem"
+          >确认删除</button>
+        </div>
+      </div>
+    </Modal>
+
     <!-- Delete confirmation -->
     <Modal :open="!!deletingEntry" title="确认删除" @close="deletingEntry = null">
       <div class="space-y-4">
@@ -140,7 +183,7 @@
 
 <script setup lang="ts">
 import type { KnowledgeEntry, KnowledgeFormData, ContentType } from '~/types/knowledge'
-import type { MindMapNode } from '~/types/mindmap'
+import type { MindMapNode, MindMapSystem } from '~/types/mindmap'
 
 const {
   categories,
@@ -216,6 +259,39 @@ async function doCreateSystem() {
   showSystemCreate.value = false
   selectedCategoryId.value = null
   selectedSystemId.value = s.id
+}
+
+// --- System edit/delete ---
+const editingSystem = ref<MindMapSystem | null>(null)
+const deletingSystem = ref<MindMapSystem | null>(null)
+const renameSystemName = ref('')
+
+function handleSystemEdit(system: MindMapSystem) {
+  editingSystem.value = system
+  renameSystemName.value = system.name
+}
+
+async function doRenameSystem() {
+  if (!editingSystem.value || !renameSystemName.value.trim()) return
+  await $fetch(`/api/systems/${editingSystem.value.id}`, {
+    method: 'PUT',
+    body: { name: renameSystemName.value.trim() },
+  })
+  await mindmap.fetchSystems()
+  editingSystem.value = null
+}
+
+function handleSystemDelete(system: MindMapSystem) {
+  deletingSystem.value = system
+}
+
+async function confirmDeleteSystem() {
+  if (!deletingSystem.value) return
+  await mindmap.deleteSystem(deletingSystem.value.id)
+  if (selectedSystemId.value === deletingSystem.value.id) {
+    selectedSystemId.value = null
+  }
+  deletingSystem.value = null
 }
 
 // --- MindMap node edit ---
@@ -304,6 +380,13 @@ provide('handleNodeMove', handleNodeMove)
 provide('handleAddNode', handleAddNode)
 provide('handleDeleteNode', handleDeleteNode)
 provide('handleMindMapNodeDblClick', handleMindMapNodeDblClick)
+provide('onSystemEdit', handleSystemEdit)
+provide('onSystemDelete', handleSystemDelete)
+provide('layoutSelectedCategoryId', selectedCategoryId)
+provide('layoutSelectedCategory', computed(() => {
+  if (!selectedCategoryId.value) return null
+  return categories.value.find(c => c.id === selectedCategoryId.value) ?? null
+}))
 provide('handleUpdateMindMapNode', async (id: string, updates: any) => {
   await mindmap.updateNode(id, updates)
   await mindmap.fetchNodes()

@@ -1,14 +1,13 @@
 <template>
   <div>
-    <div
-      v-if="systems.length > 0"
-      class="grid gap-5" style="grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));"
-    >
+    <div v-if="systems.length > 0" class="grid gap-5" style="grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));">
       <SystemCard
         v-for="system in systems"
         :key="system.id"
         :system="system"
-        @click="$emit('select', system)"
+        @dblclick="$emit('select', system)"
+        @edit="$emit('edit', system)"
+        @delete="$emit('delete', system)"
       />
     </div>
     <div v-else class="flex flex-col items-center justify-center py-24 text-slate-400">
@@ -27,5 +26,9 @@ import { Network } from 'lucide-vue-next'
 import SystemCard from './SystemCard.vue'
 
 defineProps<{ systems: MindMapSystem[] }>()
-defineEmits<{ select: [system: MindMapSystem] }>()
+defineEmits<{
+  select: [system: MindMapSystem]
+  edit: [system: MindMapSystem]
+  delete: [system: MindMapSystem]
+}>()
 </script>

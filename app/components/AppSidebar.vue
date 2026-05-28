@@ -15,7 +15,6 @@
 
     <!-- Nav -->
     <nav class="flex-1 px-3 space-y-0.5 overflow-y-auto">
-      <!-- Knowledge Categories -->
       <p class="px-3 pt-1 pb-1 text-xs font-semibold text-slate-400 uppercase tracking-wider">知识分类</p>
       <button
         :class="[
@@ -60,52 +59,37 @@
         >{{ getCount(cat.id) }}</span>
       </button>
 
-      <!-- Systems Section -->
-      <div class="pt-4 mt-2 border-t border-slate-100">
-        <div class="flex items-center justify-between px-3 pb-1">
-          <button
-            :class="[
-              'text-xs font-semibold uppercase tracking-wider transition-colors',
-              selectedSystemId === '__all__'
-                ? 'text-teal-600'
-                : 'text-slate-400 hover:text-slate-600',
-            ]"
-            @click="emit('select-system', '__all__')"
-          >系统建模</button>
-          <button
-            class="flex items-center justify-center w-5 h-5 rounded-md bg-teal-100 text-teal-600 hover:bg-teal-200 transition-colors"
-            title="新增系统"
-            @click="emit('create-system')"
-          >
-            <Plus :size="12" />
-          </button>
-        </div>
+      <!-- System modeling button -->
+      <div class="pt-4 mt-2 border-t border-slate-100" />
+      <div class="flex items-center gap-0.5">
         <button
-          v-for="sys in systems"
-          :key="sys.id"
           :class="[
-            'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
-            selectedSystemId === sys.id
+            'flex-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
+            selectedSystemId === '__all__'
               ? 'bg-teal-50 text-teal-800 shadow-sm'
               : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700',
           ]"
-          @click="emit('select-system', sys.id)"
+          @click="emit('select-system', '__all__')"
         >
-          <span :class="['w-2 h-2 rounded-full flex-shrink-0 shadow-sm', sys.dotColor]" />
+          <span class="w-2 h-2 rounded-full flex-shrink-0 shadow-sm bg-teal-500" />
           <Network :size="17" />
-          <span class="truncate">{{ sys.name }}</span>
+          <span class="truncate">系统建模</span>
           <span
             :class="[
               'ml-auto text-xs font-semibold px-1.5 py-0.5 rounded-full min-w-[22px] text-center',
-              selectedSystemId === sys.id
+              selectedSystemId === '__all__'
                 ? 'bg-teal-200 text-teal-700'
                 : 'bg-slate-100 text-slate-400',
             ]"
-          >{{ sys.nodeCount ?? 0 }}</span>
+          >{{ systemCount }}</span>
         </button>
-        <div v-if="systems.length === 0" class="px-3 py-3 text-xs text-slate-400 text-center">
-          暂无系统，点击 <span class="text-teal-500 font-medium">+</span> 创建
-        </div>
+        <button
+          class="flex items-center justify-center w-7 h-7 rounded-lg bg-teal-100 text-teal-600 hover:bg-teal-200 transition-colors flex-shrink-0"
+          title="新增系统"
+          @click="emit('create-system')"
+        >
+          <Plus :size="13" />
+        </button>
       </div>
     </nav>
 
@@ -149,6 +133,8 @@ const emit = defineEmits<{
   create: []
 }>()
 
+const systemCount = computed(() => props.systems.length)
+
 const iconMap: Record<string, any> = { Bot, Lightbulb, MessageSquareText, Terminal, Workflow }
 
 function iconComponent(name: string) {
@@ -156,6 +142,7 @@ function iconComponent(name: string) {
 }
 
 function getCount(categoryId: string): number {
-  return props.categoryCounts[categoryId] ?? 0
+  return props.categoryCou
+  nts[categoryId] ?? 0
 }
 </script>

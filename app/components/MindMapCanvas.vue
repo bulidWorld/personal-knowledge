@@ -111,8 +111,7 @@ function onWheel(e: WheelEvent) {
 }
 
 function onPanStart(e: MouseEvent) {
-  if (e.target !== svgRef.value) return // only pan on SVG background, not on nodes
-  // Left button or middle button
+  // Left button or middle button. Nodes and connections use .stop so they don't propagate here
   if (e.button === 1 || e.button === 0) {
     panning.value = true
     panStartX = e.clientX; panStartY = e.clientY

@@ -26,7 +26,7 @@
             <!-- View mode -->
             <template v-if="!editingNode">
               <h2 class="text-xl font-bold text-slate-800 mb-6">{{ focusedNode.title }}</h2>
-              <div class="knowledge-content text-slate-600 text-sm leading-relaxed max-w-3xl" v-html="focusedNodeRenderedContent" />
+              <div class="knowledge-content text-slate-600 text-sm leading-relaxed max-w-5xl" v-html="focusedNodeRenderedContent" />
               <div class="flex items-center justify-between mt-8 pt-6 border-t border-slate-100">
                 <span class="text-xs text-slate-400">更新于 {{ formatDate(focusedNode.updatedAt) }}</span>
                 <div class="flex gap-2">
@@ -140,7 +140,7 @@
       </template>
     </div>
 
-    <!-- System card grid -->
+    <!-- System card grid (系统建模) -->
     <div v-else-if="showSystemGrid">
       <header class="mb-8">
         <div class="flex items-start justify-between gap-6 flex-wrap">
@@ -150,7 +150,12 @@
           </div>
         </div>
       </header>
-      <SystemCardGrid :systems="mindmapSystems" @select="onSystemCardClick" />
+      <SystemCardGrid
+        :systems="mindmapSystems"
+        @select="onSystemCardClick"
+        @edit="onSystemEdit"
+        @delete="onSystemDelete"
+      />
     </div>
 
     <!-- Knowledge grid / detail (default) -->
@@ -218,7 +223,7 @@
 
           <!-- View mode -->
           <template v-if="!editingEntry">
-            <div class="knowledge-content text-slate-600 text-sm leading-relaxed max-w-3xl" v-html="focusedRenderedContent" />
+            <div class="knowledge-content text-slate-600 text-sm leading-relaxed max-w-5xl" v-html="focusedRenderedContent" />
             <IframeEmbed v-if="focusedEntry.iframeUrl" :src="focusedEntry.iframeUrl" />
             <img v-if="focusedEntry.imageUrl && !focusedEntry.iframeUrl" :src="focusedEntry.imageUrl" :alt="focusedEntry.title" class="max-w-full rounded-lg mt-6" loading="lazy" />
             <div class="flex items-center justify-between mt-8 pt-6 border-t border-slate-100">
@@ -285,6 +290,20 @@
 
       <KnowledgeGrid v-else :entries="entries" @edit="onEdit" @delete="onDelete" @dblclick="focusEntry" />
 
+      <!-- System cards in 全部 view when no category selected -->
+      <div v-if="!layoutSelectedCategoryId && !searchQuery && mindmapSystems.length > 0 && !focusedEntry" class="mt-10">
+        <div class="flex items-center gap-3 mb-5">
+          <h2 class="text-lg font-semibold text-slate-700">系统建模</h2>
+          <span class="text-xs text-slate-400">{{ mindmapSystems.length }} 个系统</span>
+        </div>
+        <SystemCardGrid
+          :systems="mindmapSystems"
+          @select="onSystemCardClick"
+          @edit="onSystemEdit"
+          @delete="onSystemDelete"
+        />
+      </div>
+
       <Pagination v-if="!focusedEntry" :page="currentPage" :total-pages="totalPages" @change="goToPage" />
     </template>
   </div>
@@ -301,7 +320,7 @@ import SystemCardGrid from '~/components/SystemCardGrid.vue'
 definePageMeta({ layout: 'default' })
 
 const {
-  categories: allCategories, selectedCategory, entries, total, currentPage, totalPages,
+  categories: allCategories, entries, total, currentPage, totalPages,
   searchQuery, status, goToPage, setSearch,
 } = useKnowledge()
 
@@ -319,6 +338,10 @@ const handleAddNode = inject<(type: string, x: number, y: number, parentId: stri
 const handleDeleteNode = inject<(id: string) => void>('handleDeleteNode', () => {})
 const handleMindMapNodeDblClick = inject<(node: MindMapNode) => void>('handleMindMapNodeDblClick', () => {})
 const handleUpdateMindMapNode = inject<(id: string, updates: any) => Promise<void>>('handleUpdateMindMapNode', async () => {})
+const onSystemEdit = inject<(system: MindMapSystem) => void>('onSystemEdit', () => {})
+const onSystemDelete = inject<(system: MindMapSystem) => void>('onSystemDelete', () => {})
+const layoutSelectedCategoryId = inject<Ref<string | null>>('layoutSelectedCategoryId', ref(null))
+const selectedCategory = inject<Ref<any>>('layoutSelectedCategory', ref(null))
 
 const showSystemGrid = computed(() => selectedSystemId.value === '__all__')
 
