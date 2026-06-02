@@ -1,7 +1,5 @@
-# Nuxt dev/build outputs
-.output
-.nuxt
-.nitro
+# Next.js build outputs
+.next
 .cache
 dist
 
