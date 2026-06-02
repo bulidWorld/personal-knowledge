@@ -1,6 +1,6 @@
 import type { ContentType } from './knowledge'
 
-export type MindMapNodeType = 'topic' | 'concept' | 'operation'
+export type MindMapNodeType = 'topic' | 'concept' | 'operation' | 'article'
 
 export interface MindMapNode {
   id: string

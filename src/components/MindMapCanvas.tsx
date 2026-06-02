@@ -126,6 +126,9 @@ export default function MindMapCanvas({
       case 'add-operation':
         onAddNode('operation', node.x + 160, node.y, node.id)
         break
+      case 'add-article':
+        onAddNode('article', node.x + 160, node.y, node.id)
+        break
       case 'delete':
         onDeleteNode(node.id)
         break

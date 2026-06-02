@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import type { MindMapNode as MindMapNodeType } from '@/types/mindmap'
 
-const defaultColors: Record<string, string> = { topic: '#10b981', concept: '#f59e0b', operation: '#3b82f6' }
+const defaultColors: Record<string, string> = { topic: '#10b981', concept: '#f59e0b', operation: '#3b82f6', article: '#8b5cf6' }
 
 interface MindMapNodeProps {
   node: MindMapNodeType

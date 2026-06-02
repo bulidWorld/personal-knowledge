@@ -36,9 +36,14 @@ export default function NodeContextMenu({ x, y, nodeType, onAction, onClose }: N
           </button>
         )}
         {nodeType === 'concept' && (
-          <button className="menu-item" onClick={() => onAction('add-operation')}>
-            <Plus size={13} /><span>新增操作</span>
-          </button>
+          <>
+            <button className="menu-item" onClick={() => onAction('add-operation')}>
+              <Plus size={13} /><span>新增操作</span>
+            </button>
+            <button className="menu-item" onClick={() => onAction('add-article')}>
+              <Plus size={13} /><span>新增文章</span>
+            </button>
+          </>
         )}
         <div className="h-px bg-slate-100 my-1 mx-2" />
         <button className="menu-item text-red-500 hover:bg-red-50" onClick={() => onAction('delete')}>
