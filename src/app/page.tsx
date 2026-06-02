@@ -8,6 +8,7 @@ import { useKnowledge } from '@/hooks/knowledge-context'
 import { useMindMap } from '@/hooks/mindmap-context'
 import { useApp } from '@/hooks/app-context'
 import { renderContent, renderNodeContent } from '@/lib/content-render'
+import { handleMarkdownImagePaste } from '@/lib/paste-image'
 import SearchBar from '@/components/SearchBar'
 import KnowledgeGrid from '@/components/KnowledgeGrid'
 import Pagination from '@/components/Pagination'
@@ -21,7 +22,7 @@ const contentModes = [
   { key: 'markdown' as ContentType, label: 'Markdown' },
 ]
 
-const nodeTypeLabels: Record<string, string> = { topic: '主题节点', concept: '概念节点', operation: '操作节点' }
+const nodeTypeLabels: Record<string, string> = { topic: '主题节点', concept: '概念节点', operation: '操作节点', article: '文章节点' }
 function nodeTypeLabel(type: string) { return nodeTypeLabels[type] || type }
 
 function formatDate(iso: string) {
@@ -43,6 +44,7 @@ export default function Home() {
   const [focusedEntry, setFocusedEntry] = useState<KnowledgeEntry | null>(null)
   const [editingEntry, setEditingEntry] = useState(false)
   const entryEditorRef = useRef<HTMLDivElement | null>(null)
+  const entryMdTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [entryEditForm, setEntryEditForm] = useState({
     title: '', htmlContent: '', markdownContent: '', richtextContent: '',
     contentType: 'html' as string, categoryId: '',
@@ -159,6 +161,14 @@ export default function Home() {
     document.execCommand('insertHTML', false, text)
   }
 
+  function onEntryMarkdownPaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    if (entryMdTextareaRef.current) {
+      handleMarkdownImagePaste(e, entryMdTextareaRef.current, (newValue) => {
+        setEntryEditForm((prev) => ({ ...prev, markdownContent: newValue }))
+      })
+    }
+  }
+
   function execEntryCmd(cmd: string, value?: string) {
     entryEditorRef.current?.focus()
     document.execCommand(cmd, false, value)
@@ -198,6 +208,7 @@ export default function Home() {
   // --- MindMap node detail ---
   const [focusedNode, setFocusedNode] = useState<MindMapNode | null>(null)
   const [editingNode, setEditingNode] = useState(false)
+  const nodeMdTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [nodeEditForm, setNodeEditForm] = useState({
     title: '', htmlContent: '', markdownContent: '', richtextContent: '', contentType: 'html' as string,
   })
@@ -218,6 +229,11 @@ export default function Home() {
   function closeNodeDetail() {
     setFocusedNode(null)
     setEditingNode(false)
+    // 返回画布时全量刷新，确保节点数据与服务器同步
+    if (selectedSystemId) {
+      mindmap.fetchNodes(selectedSystemId)
+      mindmap.fetchConnections(selectedSystemId)
+    }
   }
 
   function startEditingNode() {
@@ -251,6 +267,14 @@ export default function Home() {
       richtextContent: nodeEditForm.richtextContent,
       contentType: nodeEditForm.contentType,
     })
+  }
+
+  function onNodeMarkdownPaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    if (nodeMdTextareaRef.current) {
+      handleMarkdownImagePaste(e, nodeMdTextareaRef.current, (newValue) => {
+        setNodeEditForm((prev) => ({ ...prev, markdownContent: newValue }))
+      })
+    }
   }
 
   async function deleteNodeFromDetail() {
@@ -354,8 +378,10 @@ export default function Home() {
                       )}
                       {nodeEditForm.contentType === 'markdown' && (
                         <textarea
+                          ref={nodeMdTextareaRef}
                           value={nodeEditForm.markdownContent}
                           onChange={(e) => setNodeEditForm((prev) => ({ ...prev, markdownContent: e.target.value }))}
+                          onPaste={onNodeMarkdownPaste}
                           rows={10}
                           className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all resize-y"
                           placeholder="Markdown 内容..."
@@ -587,8 +613,10 @@ export default function Home() {
                   )}
                   {entryEditForm.contentType === 'markdown' && (
                     <textarea
+                      ref={entryMdTextareaRef}
                       value={entryEditForm.markdownContent}
                       onChange={(e) => setEntryEditForm((prev) => ({ ...prev, markdownContent: e.target.value }))}
+                      onPaste={onEntryMarkdownPaste}
                       rows={10}
                       className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all resize-y"
                       placeholder="Markdown 内容..."

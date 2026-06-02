@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import type { KnowledgeEntry, KnowledgeFormData, ContentType } from '@/types/knowledge'
 import type { MindMapNode, MindMapSystem } from '@/types/mindmap'
 import { KnowledgeProvider, useKnowledge } from '@/hooks/knowledge-context'
@@ -10,6 +10,7 @@ import type { AppContextValue, EditingMindMapNode } from '@/hooks/app-context'
 import AppSidebar from './AppSidebar'
 import KnowledgeForm from './KnowledgeForm'
 import Modal from './Modal'
+import { handleMarkdownImagePaste } from '@/lib/paste-image'
 
 const contentModes = [
   { key: 'richtext' as ContentType, label: '富文本' },
@@ -35,6 +36,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
   // --- MindMap node edit ---
   const [editingMindMapNode, setEditingMindMapNode] = useState<EditingMindMapNode | null>(null)
+  const nodeModalMdRef = useRef<HTMLTextAreaElement | null>(null)
 
   // --- Sidebar selection ---
   const selectedSystemId = mindmap.selectedSystemId
@@ -155,6 +157,14 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     setEditingMindMapNode(null)
   }, [editingMindMapNode, mindmap, selectedSystemId])
 
+  const onNodeModalMarkdownPaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (nodeModalMdRef.current) {
+      handleMarkdownImagePaste(e, nodeModalMdRef.current, (newValue) => {
+        setEditingMindMapNode((prev) => prev ? { ...prev, markdownContent: newValue } : null)
+      })
+    }
+  }, [])
+
   const closeMindMapNodeEdit = useCallback(() => {
     setEditingMindMapNode(null)
   }, [])
@@ -166,8 +176,8 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
   const handleAddNode = useCallback(async (type: string, x: number, y: number, parentId: string | null) => {
     if (!selectedSystemId) return
-    const typeNames: Record<string, string> = { topic: '新主题', concept: '新概念', operation: '新操作' }
-    const colors: Record<string, string> = { topic: '#10b981', concept: '#f59e0b', operation: '#3b82f6' }
+    const typeNames: Record<string, string> = { topic: '新主题', concept: '新概念', operation: '新操作', article: '新文章' }
+    const colors: Record<string, string> = { topic: '#10b981', concept: '#f59e0b', operation: '#3b82f6', article: '#8b5cf6' }
     const newNode = await mindmap.createNode({
       systemId: selectedSystemId,
       title: typeNames[type] || '新节点',
@@ -311,8 +321,10 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
               )}
               {editingMindMapNode?.contentType === 'markdown' && (
                 <textarea
+                  ref={nodeModalMdRef}
                   value={editingMindMapNode.markdownContent}
                   onChange={(e) => setEditingMindMapNode((prev) => prev ? { ...prev, markdownContent: e.target.value } : null)}
+                  onPaste={onNodeModalMarkdownPaste}
                   rows={8}
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all resize-y"
                   placeholder="Markdown 内容..."

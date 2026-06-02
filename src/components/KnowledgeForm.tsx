@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type { KnowledgeCategory, KnowledgeFormData, ContentType } from '@/types/knowledge'
 import { Bold, Italic, Strikethrough, List, ListOrdered, Code2, Terminal, Heading, Quote } from 'lucide-react'
 import Modal from './Modal'
+import { handleMarkdownImagePaste } from '@/lib/paste-image'
 
 interface KnowledgeFormProps {
   open: boolean
@@ -30,6 +31,7 @@ export default function KnowledgeForm({ open, entry, categories, onSubmit, onClo
     categoryId: '',
   })
   const editorRef = useRef<HTMLDivElement | null>(null)
+  const mdTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const isEditing = !!entry?.id
 
   // Initialize/reset form when modal opens
@@ -102,6 +104,14 @@ export default function KnowledgeForm({ open, entry, categories, onSubmit, onClo
     const text = e.clipboardData?.getData('text/plain') || ''
     document.execCommand('insertHTML', false, text)
   }
+
+  const onMarkdownPaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (mdTextareaRef.current) {
+      handleMarkdownImagePaste(e, mdTextareaRef.current, (newValue) => {
+        setForm((prev) => ({ ...prev, markdownContent: newValue }))
+      })
+    }
+  }, [])
 
   function execCmd(cmd: string, value?: string) {
     editorRef.current?.focus()
@@ -208,8 +218,10 @@ export default function KnowledgeForm({ open, entry, categories, onSubmit, onClo
 
           {form.contentType === 'markdown' && (
             <textarea
+              ref={mdTextareaRef}
               value={form.markdownContent}
               onChange={(e) => setForm((prev) => ({ ...prev, markdownContent: e.target.value }))}
+              onPaste={onMarkdownPaste}
               rows={10}
               placeholder="请输入 Markdown 内容..."
               className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all resize-y font-mono"

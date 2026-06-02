@@ -77,6 +77,8 @@ function renderRaw(html: string, markdown: string, richtext: string, contentType
     let htmlOut = marked.parse(raw || '') as string
     // Format JSON code blocks before other post-processing
     htmlOut = formatJsonCodeBlocks(htmlOut)
+    // Add referrerpolicy="no-referrer" to all img tags to avoid hotlinking 403
+    htmlOut = htmlOut.replace(/<img /g, '<img referrerpolicy="no-referrer" ')
     return htmlOut.replace(
       /<(p|li|h[1-6])([^>]*)>(.*?)<\/\1>/gs,
       (match, tag, attrs, content) => {
