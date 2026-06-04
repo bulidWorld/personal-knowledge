@@ -59,12 +59,24 @@ export default function KnowledgeForm({ open, entry, categories, onSubmit, onClo
     }
   }, [open, entry])
 
-  // Sync contentEditable when switching to richtext mode
+  // Initialize contentEditable when form opens or entry changes
+  // Uses entry data directly + setTimeout to avoid race with state commit
+  useEffect(() => {
+    if (!open) return
+    const timer = setTimeout(() => {
+      if (form.contentType === 'richtext' && editorRef.current) {
+        editorRef.current.innerHTML = entry?.richtextContent || ''
+      }
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [open, entry?.id])
+
+  // Sync contentEditable when switching to richtext mode (not on every keystroke)
   useEffect(() => {
     if (form.contentType === 'richtext' && editorRef.current) {
       editorRef.current.innerHTML = form.richtextContent || ''
     }
-  }, [form.contentType, form.richtextContent])
+  }, [form.contentType])
 
   function switchMode(mode: ContentType) {
     setForm((prev) => {
@@ -82,27 +94,41 @@ export default function KnowledgeForm({ open, entry, categories, onSubmit, onClo
   }
 
   function onPaste(e: React.ClipboardEvent) {
-    e.preventDefault()
     const items = e.clipboardData?.items
     if (items) {
       for (let i = 0; i < items.length; i++) {
         const item = items[i]
         if (item.type.startsWith('image/')) {
+          e.preventDefault()
           const file = item.getAsFile()
           if (file) {
             const reader = new FileReader()
             reader.onload = () => {
-              document.execCommand('insertHTML', false, `<img src="${reader.result}" style="max-width:100%" />`)
-              onRichTextInput()
+              // Use Selection API instead of execCommand for reliable image insertion
+              const sel = window.getSelection()
+              if (sel && sel.rangeCount > 0 && editorRef.current) {
+                const range = sel.getRangeAt(0)
+                const img = document.createElement('img')
+                img.src = reader.result as string
+                img.style.maxWidth = '100%'
+                range.deleteContents()
+                range.insertNode(img)
+                // Move cursor after the inserted image
+                range.setStartAfter(img)
+                range.collapse(true)
+                sel.removeAllRanges()
+                sel.addRange(range)
+                onRichTextInput()
+              }
             }
             reader.readAsDataURL(file)
-            return
           }
+          return
         }
       }
     }
-    const text = e.clipboardData?.getData('text/plain') || ''
-    document.execCommand('insertHTML', false, text)
+    // For text/HTML paste, let the browser handle it natively.
+    // The onInput handler will sync state automatically.
   }
 
   const onMarkdownPaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {

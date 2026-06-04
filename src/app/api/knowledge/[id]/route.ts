@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDb, persist } from '@/lib/db'
+import { getDb } from '@/lib/db'
 
 export async function GET(
   _request: NextRequest,
@@ -8,21 +8,19 @@ export async function GET(
   const db = await getDb()
   const { id } = await params
 
-  const stmt = db.prepare(
+  const result = await db.query(
     `SELECT e.*, c.name as category_name, c.icon, c.border_color, c.dot_color, c.gradient
      FROM entries e
      JOIN categories c ON e.category_id = c.id
-     WHERE e.id = ?`
+     WHERE e.id = $1`,
+    [id]
   )
-  stmt.bind([id])
-  const hasRow = stmt.step()
-  if (!hasRow) {
-    stmt.free()
+
+  if (result.rows.length === 0) {
     return NextResponse.json({ error: '条目不存在' }, { status: 404 })
   }
-  const entry = stmt.getAsObject()
-  stmt.free()
-  return NextResponse.json(entry)
+
+  return NextResponse.json(result.rows[0])
 }
 
 export async function PUT(
@@ -33,13 +31,10 @@ export async function PUT(
   const { id } = await params
   const body = await request.json()
 
-  const checkStmt = db.prepare('SELECT id FROM entries WHERE id = ?')
-  checkStmt.bind([id])
-  if (!checkStmt.step()) {
-    checkStmt.free()
+  const checkResult = await db.query('SELECT id FROM entries WHERE id = $1', [id])
+  if (checkResult.rows.length === 0) {
     return NextResponse.json({ error: '条目不存在' }, { status: 404 })
   }
-  checkStmt.free()
 
   if (!body.title?.trim()) {
     return NextResponse.json({ error: '标题不能为空' }, { status: 400 })
@@ -50,27 +45,22 @@ export async function PUT(
 
   const now = new Date().toISOString()
 
-  db.run(
+  await db.query(
     `UPDATE entries
-     SET title = ?, html_content = ?, markdown_content = ?, richtext_content = ?, content_type = ?, category_id = ?, iframe_url = ?, image_url = ?, updated_at = ?
-     WHERE id = ?`,
+     SET title = $1, html_content = $2, markdown_content = $3, richtext_content = $4, content_type = $5, category_id = $6, iframe_url = $7, image_url = $8, updated_at = $9
+     WHERE id = $10`,
     [body.title.trim(), body.htmlContent || '', body.markdownContent || '', body.richtextContent || '', body.contentType || 'html', body.categoryId, body.iframeUrl || null, body.imageUrl || null, now, id]
   )
 
-  await persist()
-
-  const stmt = db.prepare(
+  const result = await db.query(
     `SELECT e.*, c.name as category_name, c.icon, c.border_color, c.dot_color, c.gradient
      FROM entries e
      JOIN categories c ON e.category_id = c.id
-     WHERE e.id = ?`
+     WHERE e.id = $1`,
+    [id]
   )
-  stmt.bind([id])
-  stmt.step()
-  const entry = stmt.getAsObject()
-  stmt.free()
 
-  return NextResponse.json(entry)
+  return NextResponse.json(result.rows[0])
 }
 
 export async function DELETE(
@@ -80,16 +70,12 @@ export async function DELETE(
   const db = await getDb()
   const { id } = await params
 
-  const checkStmt = db.prepare('SELECT id FROM entries WHERE id = ?')
-  checkStmt.bind([id])
-  if (!checkStmt.step()) {
-    checkStmt.free()
+  const checkResult = await db.query('SELECT id FROM entries WHERE id = $1', [id])
+  if (checkResult.rows.length === 0) {
     return NextResponse.json({ error: '条目不存在' }, { status: 404 })
   }
-  checkStmt.free()
 
-  db.run('DELETE FROM entries WHERE id = ?', [id])
-  await persist()
+  await db.query('DELETE FROM entries WHERE id = $1', [id])
 
   return NextResponse.json({ success: true })
 }

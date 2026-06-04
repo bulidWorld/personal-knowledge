@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDb, persist } from '@/lib/db'
+import { getDb } from '@/lib/db'
 
 export async function PUT(
   request: NextRequest,
@@ -10,21 +10,18 @@ export async function PUT(
   const body = await request.json()
 
   // Fetch existing node to merge with partial updates
-  const existing = db.prepare('SELECT * FROM mindmap_nodes WHERE id = ?')
-  existing.bind([id])
-  if (!existing.step()) {
-    existing.free()
+  const existingResult = await db.query('SELECT * FROM mindmap_nodes WHERE id = $1', [id])
+  if (existingResult.rows.length === 0) {
     return NextResponse.json({ error: '节点不存在' }, { status: 404 })
   }
-  const cur = existing.getAsObject() as Record<string, unknown>
-  existing.free()
+  const cur = existingResult.rows[0] as Record<string, unknown>
 
   const now = new Date().toISOString()
-  db.run(
+  await db.query(
     `UPDATE mindmap_nodes
-     SET title = ?, html_content = ?, markdown_content = ?, richtext_content = ?, content_type = ?,
-         node_type = ?, parent_id = ?, x = ?, y = ?, color = ?, updated_at = ?
-     WHERE id = ?`,
+     SET title = $1, html_content = $2, markdown_content = $3, richtext_content = $4, content_type = $5,
+         node_type = $6, parent_id = $7, x = $8, y = $9, color = $10, updated_at = $11
+     WHERE id = $12`,
     [
       body.title?.trim() ?? cur.title,
       body.htmlContent ?? cur.html_content ?? '',
@@ -39,14 +36,9 @@ export async function PUT(
       now, id,
     ]
   )
-  await persist()
 
-  const stmt = db.prepare('SELECT * FROM mindmap_nodes WHERE id = ?')
-  stmt.bind([id])
-  stmt.step()
-  const node = stmt.getAsObject()
-  stmt.free()
-  return NextResponse.json(node)
+  const result = await db.query('SELECT * FROM mindmap_nodes WHERE id = $1', [id])
+  return NextResponse.json(result.rows[0])
 }
 
 export async function DELETE(
@@ -56,9 +48,8 @@ export async function DELETE(
   const db = await getDb()
   const { id } = await params
 
-  db.run('DELETE FROM mindmap_connections WHERE source_node_id = ? OR target_node_id = ?', [id, id])
-  db.run('DELETE FROM mindmap_nodes WHERE parent_id = ?', [id])
-  db.run('DELETE FROM mindmap_nodes WHERE id = ?', [id])
-  await persist()
+  await db.query('DELETE FROM mindmap_connections WHERE source_node_id = $1 OR target_node_id = $1', [id])
+  await db.query('DELETE FROM mindmap_nodes WHERE parent_id = $1', [id])
+  await db.query('DELETE FROM mindmap_nodes WHERE id = $1', [id])
   return NextResponse.json({ success: true })
 }

@@ -1,10 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import type { KnowledgeCategory } from '@/types/knowledge'
 import type { MindMapSystem } from '@/types/mindmap'
 import {
   Bot, Lightbulb, MessageSquareText, Terminal, Workflow,
-  LayoutGrid, BookOpen, Plus, Network,
+  LayoutGrid, BookOpen, Plus, Network, Pencil, Trash2,
 } from 'lucide-react'
 
 const iconMap: Record<string, React.ComponentType<{ size?: number }>> = {
@@ -27,13 +28,18 @@ interface AppSidebarProps {
   onSelectSystem: (id: string | null) => void
   onCreateSystem: () => void
   onCreate: () => void
+  onCreateCategory: () => void
+  onEditCategory: (cat: KnowledgeCategory) => void
+  onDeleteCategory: (cat: KnowledgeCategory) => void
 }
 
 export default function AppSidebar({
   categories, selectedCategoryId, selectedSystemId, totalCount,
   categoryCounts, systems,
   onSelectCategory, onSelectSystem, onCreateSystem, onCreate,
+  onCreateCategory, onEditCategory, onDeleteCategory,
 }: AppSidebarProps) {
+  const [hoveredCatId, setHoveredCatId] = useState<string | null>(null)
   const systemCount = systems.length
   const isAllSelected = !selectedCategoryId && !selectedSystemId
 
@@ -54,7 +60,17 @@ export default function AppSidebar({
 
       {/* Nav */}
       <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
-        <p className="px-3 pt-1 pb-1 text-xs font-semibold text-slate-400 uppercase tracking-wider">知识分类</p>
+        <div className="flex items-center gap-1 px-3 pt-1 pb-1">
+          <p className="flex-1 text-xs font-semibold text-slate-400 uppercase tracking-wider">知识分类</p>
+          <button
+            className="flex items-center justify-center w-5 h-5 rounded-md text-slate-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+            title="新增分类"
+            onClick={onCreateCategory}
+          >
+            <Plus size={13} />
+          </button>
+        </div>
+
         <button
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
             isAllSelected ? 'bg-slate-100 text-slate-900 shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
@@ -69,20 +85,52 @@ export default function AppSidebar({
         </button>
 
         {categories.map((cat) => (
-          <button
+          <div
             key={cat.id}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
-              selectedCategoryId === cat.id ? 'bg-slate-100 text-slate-900 shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-            }`}
-            onClick={() => onSelectCategory(cat.id)}
+            className="relative group"
+            onMouseEnter={() => setHoveredCatId(cat.id)}
+            onMouseLeave={() => setHoveredCatId(null)}
           >
-            <span className={`w-2 h-2 rounded-full flex-shrink-0 shadow-sm ${cat.dotColor}`} />
-            <IconComponent name={cat.icon} />
-            <span className="truncate">{cat.name}</span>
-            <span className={`ml-auto text-xs font-semibold px-1.5 py-0.5 rounded-full min-w-[22px] text-center ${
-              selectedCategoryId === cat.id ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-400'
-            }`}>{categoryCounts[cat.id] ?? 0}</span>
-          </button>
+            <button
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                selectedCategoryId === cat.id ? 'bg-slate-100 text-slate-900 shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+              }`}
+              onClick={() => onSelectCategory(cat.id)}
+            >
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 shadow-sm ${cat.dotColor}`} />
+              <IconComponent name={cat.icon} />
+              <span className="truncate">{cat.name}</span>
+              <span className={`ml-auto text-xs font-semibold px-1.5 py-0.5 rounded-full min-w-[22px] text-center ${
+                selectedCategoryId === cat.id ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-400'
+              }`}>{categoryCounts[cat.id] ?? 0}</span>
+            </button>
+
+            {/* Edit / Delete buttons on hover */}
+            {hoveredCatId === cat.id && (
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                <button
+                  className="flex items-center justify-center w-6 h-6 rounded-md text-slate-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                  title="编辑分类"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onEditCategory(cat)
+                  }}
+                >
+                  <Pencil size={12} />
+                </button>
+                <button
+                  className="flex items-center justify-center w-6 h-6 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                  title="删除分类"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDeleteCategory(cat)
+                  }}
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            )}
+          </div>
         ))}
 
         {/* System modeling */}

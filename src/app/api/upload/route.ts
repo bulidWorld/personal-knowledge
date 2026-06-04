@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFileSync, existsSync, mkdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { getDb } from '@/lib/db'
+import { randomUUID } from 'node:crypto'
 
-const UPLOADS_DIR = join(process.cwd(), 'public', 'uploads')
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
-const MIME_TO_EXT: Record<string, string> = {
-  'image/png': '.png',
-  'image/jpeg': '.jpg',
-  'image/webp': '.webp',
-  'image/gif': '.gif',
-  'image/svg+xml': '.svg',
-  'image/bmp': '.bmp',
-}
+const MIME_WHITELIST = [
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+  'image/svg+xml',
+  'image/bmp',
+]
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,20 +22,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '未找到图片文件' }, { status: 400 })
     }
 
-    if (!file.type.startsWith('image/')) {
-      return NextResponse.json({ error: '仅支持图片文件' }, { status: 400 })
+    if (!file.type.startsWith('image/') || !MIME_WHITELIST.includes(file.type)) {
+      return NextResponse.json({ error: '仅支持图片文件 (png, jpg, webp, gif, svg, bmp)' }, { status: 400 })
     }
 
-    if (!existsSync(UPLOADS_DIR)) {
-      mkdirSync(UPLOADS_DIR, { recursive: true })
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({ error: '图片大小不能超过 10MB' }, { status: 400 })
     }
 
-    const ext = MIME_TO_EXT[file.type] || '.png'
-    const filename = `paste-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`
+    const db = await getDb()
+    const id = randomUUID()
     const buffer = Buffer.from(await file.arrayBuffer())
-    writeFileSync(join(UPLOADS_DIR, filename), buffer)
 
-    return NextResponse.json({ url: `/uploads/${filename}` })
+    await db.query(
+      `INSERT INTO uploads (id, filename, mime_type, data, size)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [id, file.name || `paste-${Date.now()}.png`, file.type, buffer, buffer.length]
+    )
+
+    return NextResponse.json({ url: `/api/files/${id}`, id })
   } catch (error) {
     console.error('Upload error:', error)
     return NextResponse.json({ error: '上传失败' }, { status: 500 })

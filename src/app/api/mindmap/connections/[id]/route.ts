@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDb, persist } from '@/lib/db'
+import { getDb } from '@/lib/db'
 
 export async function DELETE(
   _request: NextRequest,
@@ -8,7 +8,6 @@ export async function DELETE(
   const db = await getDb()
   const { id } = await params
 
-  db.run('DELETE FROM mindmap_connections WHERE id = ?', [id])
-  await persist()
+  await db.query('DELETE FROM mindmap_connections WHERE id = $1', [id])
   return NextResponse.json({ success: true })
 }

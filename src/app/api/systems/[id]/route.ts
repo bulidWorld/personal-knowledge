@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDb, persist } from '@/lib/db'
+import { getDb } from '@/lib/db'
 
 export async function PUT(
   request: NextRequest,
@@ -11,17 +11,12 @@ export async function PUT(
   if (!body.name?.trim()) return NextResponse.json({ error: '系统名称不能为空' }, { status: 400 })
 
   const now = new Date().toISOString()
-  db.run('UPDATE systems SET name = ?, description = ?, updated_at = ? WHERE id = ?', [
+  await db.query('UPDATE systems SET name = $1, description = $2, updated_at = $3 WHERE id = $4', [
     body.name.trim(), body.description || '', now, id,
   ])
-  await persist()
 
-  const stmt = db.prepare('SELECT * FROM systems WHERE id = ?')
-  stmt.bind([id])
-  stmt.step()
-  const system = stmt.getAsObject()
-  stmt.free()
-  return NextResponse.json(system)
+  const result = await db.query('SELECT * FROM systems WHERE id = $1', [id])
+  return NextResponse.json(result.rows[0])
 }
 
 export async function DELETE(
@@ -31,9 +26,8 @@ export async function DELETE(
   const db = await getDb()
   const { id } = await params
 
-  db.run('DELETE FROM mindmap_connections WHERE system_id = ?', [id])
-  db.run('DELETE FROM mindmap_nodes WHERE system_id = ?', [id])
-  db.run('DELETE FROM systems WHERE id = ?', [id])
-  await persist()
+  await db.query('DELETE FROM mindmap_connections WHERE system_id = $1', [id])
+  await db.query('DELETE FROM mindmap_nodes WHERE system_id = $1', [id])
+  await db.query('DELETE FROM systems WHERE id = $1', [id])
   return NextResponse.json({ success: true })
 }

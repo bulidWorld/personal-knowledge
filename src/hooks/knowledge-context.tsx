@@ -42,6 +42,9 @@ interface KnowledgeContextValue {
   createEntry: (form: KnowledgeFormData) => Promise<void>
   updateEntry: (id: string, form: KnowledgeFormData) => Promise<void>
   deleteEntry: (id: string) => Promise<void>
+  createCategory: (data: { name: string; icon: string; description: string; borderColor: string; dotColor: string; gradient: string }) => Promise<void>
+  updateCategory: (id: string, data: { name: string; icon: string; description: string; borderColor: string; dotColor: string; gradient: string }) => Promise<void>
+  deleteCategory: (id: string) => Promise<{ success: boolean; error?: string }>
   refresh: () => Promise<void>
 }
 
@@ -166,6 +169,34 @@ export function KnowledgeProvider({ children }: { children: React.ReactNode }) {
     await refresh()
   }, [refresh])
 
+  const createCategory = useCallback(async (data: { name: string; icon: string; description: string; borderColor: string; dotColor: string; gradient: string }) => {
+    await fetch('/api/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    await fetchCategories()
+  }, [fetchCategories])
+
+  const updateCategory = useCallback(async (id: string, data: { name: string; icon: string; description: string; borderColor: string; dotColor: string; gradient: string }) => {
+    await fetch(`/api/categories/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    await fetchCategories()
+  }, [fetchCategories])
+
+  const deleteCategory = useCallback(async (id: string): Promise<{ success: boolean; error?: string }> => {
+    const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' })
+    const data = await res.json()
+    if (res.ok) {
+      await fetchCategories()
+      return { success: true }
+    }
+    return { success: false, error: data.error || '删除失败' }
+  }, [fetchCategories])
+
   const value = useMemo<KnowledgeContextValue>(() => ({
     categories,
     entries,
@@ -184,11 +215,15 @@ export function KnowledgeProvider({ children }: { children: React.ReactNode }) {
     createEntry,
     updateEntry,
     deleteEntry,
+    createCategory,
+    updateCategory,
+    deleteCategory,
     refresh,
   }), [
     categories, entries, selectedCategoryId, selectedCategory, searchQuery,
     currentPage, total, totalPages, categoryCounts, status,
-    selectCategory, setSearch, goToPage, createEntry, updateEntry, deleteEntry, refresh,
+    selectCategory, setSearch, goToPage, createEntry, updateEntry, deleteEntry,
+    createCategory, updateCategory, deleteCategory, refresh,
   ])
 
   return (

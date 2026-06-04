@@ -1,114 +1,42 @@
-import initSqlJs, { Database as SqlJsDatabase } from 'sql.js'
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { Pool, QueryResult } from 'pg'
 
-let db: SqlJsDatabase | null = null
+let pool: Pool | null = null
 
-function resolveDbPath(): string {
-  if (process.env.DB_PATH) return process.env.DB_PATH
-  return join(process.cwd(), '.data', 'knowledge.db')
+function getPool(): Pool {
+  if (pool) return pool
+
+  pool = new Pool({
+    host: process.env.DB_HOST || 'localhost',
+    port: Number(process.env.DB_PORT) || 5432,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASS,
+    database: process.env.DB_NAME,
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+  })
+
+  pool.on('error', (err) => {
+    console.error('Unexpected pool error', err)
+  })
+
+  return pool
 }
 
-export async function getDb(): Promise<SqlJsDatabase> {
-  if (db) return db
+export interface Db {
+  query: (text: string, params?: unknown[]) => Promise<QueryResult>
+}
 
-  const dbPath = resolveDbPath()
-
-  const SQL = await initSqlJs()
-
-  if (existsSync(dbPath)) {
-    const buffer = readFileSync(dbPath)
-    db = new SQL.Database(buffer)
-  } else {
-    db = new SQL.Database()
-    initTables(db)
-    persist()
+export async function getDb(): Promise<Db> {
+  const p = getPool()
+  return {
+    query: (text: string, params?: unknown[]) => p.query(text, params),
   }
-
-  return db
 }
 
-function initTables(d: SqlJsDatabase) {
-  d.run('PRAGMA foreign_keys = ON')
-  d.run(`
-    CREATE TABLE categories (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      icon TEXT NOT NULL,
-      border_color TEXT NOT NULL DEFAULT '',
-      dot_color TEXT NOT NULL DEFAULT '',
-      gradient TEXT NOT NULL DEFAULT '',
-      description TEXT NOT NULL DEFAULT ''
-    )
-  `)
-  d.run(`
-    CREATE TABLE entries (
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      html_content TEXT NOT NULL DEFAULT '',
-      markdown_content TEXT NOT NULL DEFAULT '',
-      richtext_content TEXT NOT NULL DEFAULT '',
-      content_type TEXT NOT NULL DEFAULT 'html',
-      category_id TEXT NOT NULL,
-      iframe_url TEXT,
-      image_url TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
-    )
-  `)
-  d.run(`
-    CREATE TABLE systems (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      description TEXT DEFAULT '',
-      icon TEXT DEFAULT 'Network',
-      border_color TEXT DEFAULT 'border-l-teal-500',
-      dot_color TEXT DEFAULT 'bg-teal-500',
-      gradient TEXT DEFAULT 'bg-gradient-to-r from-teal-400 to-teal-500',
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-  `)
-  d.run(`
-    CREATE TABLE mindmap_nodes (
-      id TEXT PRIMARY KEY,
-      system_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      html_content TEXT DEFAULT '',
-      markdown_content TEXT DEFAULT '',
-      richtext_content TEXT DEFAULT '',
-      content_type TEXT DEFAULT 'html',
-      node_type TEXT NOT NULL,
-      parent_id TEXT,
-      x REAL DEFAULT 300,
-      y REAL DEFAULT 250,
-      color TEXT DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (system_id) REFERENCES systems(id) ON DELETE CASCADE
-    )
-  `)
-  d.run(`
-    CREATE TABLE mindmap_connections (
-      id TEXT PRIMARY KEY,
-      system_id TEXT NOT NULL,
-      source_node_id TEXT NOT NULL,
-      target_node_id TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (system_id) REFERENCES systems(id) ON DELETE CASCADE,
-      FOREIGN KEY (source_node_id) REFERENCES mindmap_nodes(id) ON DELETE CASCADE,
-      FOREIGN KEY (target_node_id) REFERENCES mindmap_nodes(id) ON DELETE CASCADE
-    )
-  `)
-}
-
-export async function persist() {
-  if (!db) return
-  const dbPath = resolveDbPath()
-  const dbDir = dirname(dbPath)
-  if (!existsSync(dbDir)) mkdirSync(dbDir, { recursive: true })
-  const data = db.export()
-  const buffer = Buffer.from(data)
-  writeFileSync(dbPath, buffer)
+export async function closePool(): Promise<void> {
+  if (pool) {
+    await pool.end()
+    pool = null
+  }
 }

@@ -1,19 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDb, persist } from '@/lib/db'
+import { getDb } from '@/lib/db'
 
 export async function GET() {
   const db = await getDb()
-  const stmt = db.prepare(`
-    SELECT s.*, COUNT(mn.id) as node_count
+  const result = await db.query(`
+    SELECT s.*, COUNT(mn.id)::int as node_count
     FROM systems s
     LEFT JOIN mindmap_nodes mn ON s.id = mn.system_id
     GROUP BY s.id
     ORDER BY s.updated_at DESC
   `)
-  const systems: unknown[] = []
-  while (stmt.step()) systems.push(stmt.getAsObject())
-  stmt.free()
-  return NextResponse.json(systems)
+  return NextResponse.json(result.rows)
 }
 
 export async function POST(request: NextRequest) {
@@ -28,22 +25,16 @@ export async function POST(request: NextRequest) {
   const dotColor = body.dotColor || 'bg-teal-500'
   const gradient = body.gradient || 'bg-gradient-to-r from-teal-400 to-teal-500'
 
-  db.run('INSERT INTO systems VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+  await db.query('INSERT INTO systems VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)', [
     id, body.name.trim(), body.description || '', icon, borderColor, dotColor, gradient, now, now,
   ])
 
   // Auto-create root topic node
   const rootId = `node-${Date.now()}`
-  db.run('INSERT INTO mindmap_nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+  await db.query('INSERT INTO mindmap_nodes VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)', [
     rootId, id, body.name.trim(), '', '', '', 'html', 'topic', null, 400, 250, '#10b981', now, now,
   ])
 
-  await persist()
-
-  const stmt = db.prepare('SELECT * FROM systems WHERE id = ?')
-  stmt.bind([id])
-  stmt.step()
-  const system = stmt.getAsObject()
-  stmt.free()
-  return NextResponse.json({ ...system, nodeCount: 1 })
+  const result = await db.query('SELECT * FROM systems WHERE id = $1', [id])
+  return NextResponse.json({ ...result.rows[0], nodeCount: 1 })
 }
