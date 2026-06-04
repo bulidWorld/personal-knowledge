@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Trash2, GitBranch } from 'lucide-react'
 
 interface NodeContextMenuProps {
   x: number
@@ -37,6 +37,9 @@ export default function NodeContextMenu({ x, y, nodeType, onAction, onClose }: N
         )}
         {nodeType === 'concept' && (
           <>
+            <button className="menu-item" onClick={() => onAction('add-concept')}>
+              <Plus size={13} /><span>新增概念</span>
+            </button>
             <button className="menu-item" onClick={() => onAction('add-operation')}>
               <Plus size={13} /><span>新增操作</span>
             </button>
@@ -45,6 +48,15 @@ export default function NodeContextMenu({ x, y, nodeType, onAction, onClose }: N
             </button>
           </>
         )}
+        {nodeType === 'article' && (
+          <button className="menu-item" onClick={() => onAction('add-operation')}>
+            <Plus size={13} /><span>新增操作</span>
+          </button>
+        )}
+        <div className="h-px bg-slate-100 my-1 mx-2" />
+        <button className="menu-item" onClick={() => onAction('change-parent')}>
+          <GitBranch size={13} /><span>修改父节点</span>
+        </button>
         <div className="h-px bg-slate-100 my-1 mx-2" />
         <button className="menu-item text-red-500 hover:bg-red-50" onClick={() => onAction('delete')}>
           <Trash2 size={13} /><span>删除节点</span>

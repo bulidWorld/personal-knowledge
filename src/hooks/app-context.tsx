@@ -11,6 +11,7 @@ interface EditingMindMapNode {
   markdownContent: string
   richtextContent: string
   contentType: ContentType
+  nodeType: string
 }
 
 interface AppContextValue {
@@ -31,6 +32,9 @@ interface AppContextValue {
 
   // Node detail update
   handleUpdateMindMapNode: (id: string, updates: Record<string, unknown>) => Promise<void>
+
+  // Parent node change
+  handleChangeParent: (nodeId: string, newParentId: string | null) => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)

@@ -3,7 +3,7 @@
 import { useState, useRef, useMemo, useEffect } from 'react'
 import { Plus, ArrowLeft, Pencil, Trash2, Bold, Italic, Strikethrough, List, ListOrdered, Code2, Terminal, Heading, Quote } from 'lucide-react'
 import type { KnowledgeEntry, ContentType } from '@/types/knowledge'
-import type { MindMapNode, MindMapSystem } from '@/types/mindmap'
+import type { MindMapNode, MindMapNodeType, MindMapSystem } from '@/types/mindmap'
 import { useKnowledge } from '@/hooks/knowledge-context'
 import { useMindMap } from '@/hooks/mindmap-context'
 import { useApp } from '@/hooks/app-context'
@@ -24,6 +24,8 @@ const contentModes = [
 
 const nodeTypeLabels: Record<string, string> = { topic: '主题节点', concept: '概念节点', operation: '操作节点', article: '文章节点' }
 function nodeTypeLabel(type: string) { return nodeTypeLabels[type] || type }
+
+const nodeTypeColors: Record<string, string> = { topic: '#10b981', concept: '#f59e0b', operation: '#3b82f6', article: '#8b5cf6' }
 
 function formatDate(iso: string) {
   if (!iso) return ''
@@ -74,11 +76,24 @@ export default function Home() {
 
   function cancelEditingEntry() { setEditingEntry(false) }
 
+  // Initialize contentEditable when editing starts or focused entry changes
+  // Uses focusedEntry data directly + setTimeout to avoid race with state commit
   useEffect(() => {
-    if (editingEntry && entryEditForm.contentType === 'richtext' && entryEditorRef.current) {
+    if (!editingEntry) return
+    const timer = setTimeout(() => {
+      if (entryEditForm.contentType === 'richtext' && entryEditorRef.current) {
+        entryEditorRef.current.innerHTML = focusedEntry?.richtextContent || ''
+      }
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [editingEntry, focusedEntry?.id])
+
+  // Sync contentEditable when switching to richtext mode (not on every keystroke)
+  useEffect(() => {
+    if (entryEditForm.contentType === 'richtext' && entryEditorRef.current) {
       entryEditorRef.current.innerHTML = entryEditForm.richtextContent || ''
     }
-  }, [editingEntry, entryEditForm.contentType, entryEditForm.richtextContent])
+  }, [entryEditForm.contentType])
 
   async function saveEntryEdit() {
     if (!focusedEntry) return
@@ -122,13 +137,7 @@ export default function Home() {
       const richtextContent = prev.contentType === 'richtext' && entryEditorRef.current
         ? entryEditorRef.current.innerHTML || ''
         : prev.richtextContent
-      const updated = { ...prev, contentType: mode, richtextContent }
-      if (mode === 'richtext') {
-        setTimeout(() => {
-          if (entryEditorRef.current) entryEditorRef.current.innerHTML = richtextContent || ''
-        }, 0)
-      }
-      return updated
+      return { ...prev, contentType: mode, richtextContent }
     })
   }
 
@@ -138,27 +147,41 @@ export default function Home() {
   }
 
   function onEntryPaste(e: React.ClipboardEvent) {
-    e.preventDefault()
     const items = e.clipboardData?.items
     if (items) {
       for (let i = 0; i < items.length; i++) {
         const item = items[i]
         if (item.type.startsWith('image/')) {
+          e.preventDefault()
           const file = item.getAsFile()
           if (file) {
             const reader = new FileReader()
             reader.onload = () => {
-              document.execCommand('insertHTML', false, `<img src="${reader.result}" style="max-width:100%" />`)
-              onEntryRichTextInput()
+              // Use Selection API instead of execCommand for reliable image insertion
+              const sel = window.getSelection()
+              if (sel && sel.rangeCount > 0 && entryEditorRef.current) {
+                const range = sel.getRangeAt(0)
+                const img = document.createElement('img')
+                img.src = reader.result as string
+                img.style.maxWidth = '100%'
+                range.deleteContents()
+                range.insertNode(img)
+                // Move cursor after the inserted image
+                range.setStartAfter(img)
+                range.collapse(true)
+                sel.removeAllRanges()
+                sel.addRange(range)
+                onEntryRichTextInput()
+              }
             }
             reader.readAsDataURL(file)
-            return
           }
+          return
         }
       }
     }
-    const text = e.clipboardData?.getData('text/plain') || ''
-    document.execCommand('insertHTML', false, text)
+    // For text/HTML paste, let the browser handle it natively.
+    // The onInput handler will sync state automatically.
   }
 
   function onEntryMarkdownPaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
@@ -210,7 +233,7 @@ export default function Home() {
   const [editingNode, setEditingNode] = useState(false)
   const nodeMdTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [nodeEditForm, setNodeEditForm] = useState({
-    title: '', htmlContent: '', markdownContent: '', richtextContent: '', contentType: 'html' as string,
+    title: '', htmlContent: '', markdownContent: '', richtextContent: '', contentType: 'html' as string, nodeType: 'topic' as string,
   })
 
   const focusedNodeGradient = useMemo(() => {
@@ -244,6 +267,7 @@ export default function Home() {
       markdownContent: focusedNode.markdownContent || '',
       richtextContent: focusedNode.richtextContent || '',
       contentType: focusedNode.contentType || 'html',
+      nodeType: focusedNode.nodeType || 'topic',
     })
     setEditingNode(true)
   }
@@ -251,6 +275,7 @@ export default function Home() {
   async function saveNodeEdit() {
     if (!focusedNode) return
     const id = focusedNode.id
+    const newColor = nodeTypeColors[nodeEditForm.nodeType] || focusedNode.color
     setFocusedNode({
       ...focusedNode,
       title: nodeEditForm.title,
@@ -258,6 +283,8 @@ export default function Home() {
       markdownContent: nodeEditForm.markdownContent,
       richtextContent: nodeEditForm.richtextContent,
       contentType: nodeEditForm.contentType as ContentType,
+      nodeType: nodeEditForm.nodeType as MindMapNodeType,
+      color: newColor,
     })
     setEditingNode(false)
     await app.handleUpdateMindMapNode(id, {
@@ -266,6 +293,8 @@ export default function Home() {
       markdownContent: nodeEditForm.markdownContent,
       richtextContent: nodeEditForm.richtextContent,
       contentType: nodeEditForm.contentType,
+      nodeType: nodeEditForm.nodeType as MindMapNodeType,
+      color: newColor,
     })
   }
 
@@ -348,6 +377,19 @@ export default function Home() {
                         onChange={(e) => setNodeEditForm((prev) => ({ ...prev, title: e.target.value }))}
                         className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all"
                       />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1.5">节点类型</label>
+                      <select
+                        value={nodeEditForm.nodeType}
+                        onChange={(e) => setNodeEditForm((prev) => ({ ...prev, nodeType: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all"
+                      >
+                        <option value="topic">主题节点</option>
+                        <option value="concept">概念节点</option>
+                        <option value="operation">操作节点</option>
+                        <option value="article">文章节点</option>
+                      </select>
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
@@ -434,6 +476,7 @@ export default function Home() {
               onNodeDblClick={showNodeDetail}
               onAddNode={app.handleAddNode}
               onDeleteNode={app.handleDeleteNode}
+              onChangeParent={app.handleChangeParent}
             />
           </>
         )}

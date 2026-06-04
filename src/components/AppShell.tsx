@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import type { KnowledgeEntry, KnowledgeFormData, ContentType } from '@/types/knowledge'
+import type { KnowledgeEntry, KnowledgeFormData, KnowledgeCategory, ContentType } from '@/types/knowledge'
 import type { MindMapNode, MindMapSystem } from '@/types/mindmap'
 import { KnowledgeProvider, useKnowledge } from '@/hooks/knowledge-context'
 import { MindMapProvider, useMindMap } from '@/hooks/mindmap-context'
@@ -11,6 +11,23 @@ import AppSidebar from './AppSidebar'
 import KnowledgeForm from './KnowledgeForm'
 import Modal from './Modal'
 import { handleMarkdownImagePaste } from '@/lib/paste-image'
+
+const CATEGORY_ICONS = [
+  'Bot', 'Lightbulb', 'MessageSquareText', 'Terminal', 'Workflow',
+  'Code2', 'FileText', 'Globe', 'Database', 'Palette',
+  'Rocket', 'Star', 'Zap', 'BookOpen', 'LayoutGrid',
+]
+
+const CATEGORY_COLORS = [
+  { dot: 'bg-blue-500', border: 'border-l-blue-500', gradient: 'bg-gradient-to-r from-blue-400 to-blue-500' },
+  { dot: 'bg-teal-500', border: 'border-l-teal-500', gradient: 'bg-gradient-to-r from-teal-400 to-teal-500' },
+  { dot: 'bg-violet-500', border: 'border-l-violet-500', gradient: 'bg-gradient-to-r from-violet-400 to-violet-500' },
+  { dot: 'bg-rose-500', border: 'border-l-rose-500', gradient: 'bg-gradient-to-r from-rose-400 to-rose-500' },
+  { dot: 'bg-amber-500', border: 'border-l-amber-500', gradient: 'bg-gradient-to-r from-amber-400 to-amber-500' },
+  { dot: 'bg-emerald-500', border: 'border-l-emerald-500', gradient: 'bg-gradient-to-r from-emerald-400 to-emerald-500' },
+  { dot: 'bg-cyan-500', border: 'border-l-cyan-500', gradient: 'bg-gradient-to-r from-cyan-400 to-cyan-500' },
+  { dot: 'bg-pink-500', border: 'border-l-pink-500', gradient: 'bg-gradient-to-r from-pink-400 to-pink-500' },
+]
 
 const contentModes = [
   { key: 'richtext' as ContentType, label: '富文本' },
@@ -33,6 +50,12 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const [editingSystem, setEditingSystem] = useState<MindMapSystem | null>(null)
   const [deletingSystem, setDeletingSystem] = useState<MindMapSystem | null>(null)
   const [renameSystemName, setRenameSystemName] = useState('')
+
+  // --- Category state ---
+  const [showCategoryForm, setShowCategoryForm] = useState(false)
+  const [editingCategory, setEditingCategory] = useState<KnowledgeCategory | null>(null)
+  const [deletingCategory, setDeletingCategory] = useState<KnowledgeCategory | null>(null)
+  const [categoryForm, setCategoryForm] = useState({ name: '', icon: 'LayoutGrid', description: '', colorIndex: 0 })
 
   // --- MindMap node edit ---
   const [editingMindMapNode, setEditingMindMapNode] = useState<EditingMindMapNode | null>(null)
@@ -84,9 +107,17 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   }, [deletingEntry, knowledge])
 
   const openCreateForm = useCallback(() => {
-    setEditingEntry(null)
+    // Pre-select the currently active category if any
+    setEditingEntry(knowledge.selectedCategoryId ? {
+      title: '',
+      htmlContent: '',
+      markdownContent: '',
+      richtextContent: '',
+      contentType: 'richtext' as ContentType,
+      categoryId: knowledge.selectedCategoryId,
+    } : null)
     setShowCreateForm(true)
-  }, [])
+  }, [knowledge.selectedCategoryId])
 
   // --- System handlers ---
   const onCreateSystem = useCallback(() => {
@@ -131,6 +162,63 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     setDeletingSystem(null)
   }, [deletingSystem, mindmap, selectedSystemId, setSelectedSystemId])
 
+  // --- Category handlers ---
+  const openCreateCategoryForm = useCallback(() => {
+    setEditingCategory(null)
+    setCategoryForm({ name: '', icon: 'LayoutGrid', description: '', colorIndex: 0 })
+    setShowCategoryForm(true)
+  }, [])
+
+  const openEditCategoryForm = useCallback((cat: KnowledgeCategory) => {
+    setEditingCategory(cat)
+    // Try to find matching color index
+    const colorIdx = CATEGORY_COLORS.findIndex(c => c.dot === cat.dotColor)
+    setCategoryForm({
+      name: cat.name,
+      icon: cat.icon,
+      description: cat.description,
+      colorIndex: colorIdx >= 0 ? colorIdx : 0,
+    })
+    setShowCategoryForm(true)
+  }, [])
+
+  const handleCategoryFormSubmit = useCallback(async () => {
+    if (!categoryForm.name.trim()) return
+    const colors = CATEGORY_COLORS[categoryForm.colorIndex] || CATEGORY_COLORS[0]
+    const data = {
+      name: categoryForm.name.trim(),
+      icon: categoryForm.icon,
+      description: categoryForm.description.trim(),
+      borderColor: colors.border,
+      dotColor: colors.dot,
+      gradient: colors.gradient,
+    }
+    if (editingCategory) {
+      await knowledge.updateCategory(editingCategory.id, data)
+    } else {
+      await knowledge.createCategory(data)
+    }
+    setShowCategoryForm(false)
+    setEditingCategory(null)
+  }, [categoryForm, editingCategory, knowledge])
+
+  const handleDeleteCategory = useCallback((cat: KnowledgeCategory) => {
+    setDeletingCategory(cat)
+  }, [])
+
+  const confirmDeleteCategory = useCallback(async () => {
+    if (!deletingCategory) return
+    const result = await knowledge.deleteCategory(deletingCategory.id)
+    if (!result.success) {
+      alert(result.error || '删除分类失败')
+    }
+    setDeletingCategory(null)
+    // Clear selection if we're viewing the deleted category
+    if (knowledge.selectedCategoryId === deletingCategory.id) {
+      knowledge.selectCategory(null)
+    }
+  }, [deletingCategory, knowledge])
+
   // --- MindMap node edit ---
   const handleMindMapNodeDblClick = useCallback((node: MindMapNode) => {
     setEditingMindMapNode({
@@ -140,18 +228,22 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       markdownContent: node.markdownContent || '',
       richtextContent: node.richtextContent || '',
       contentType: node.contentType || 'html',
+      nodeType: node.nodeType,
     })
   }, [])
 
   const saveMindMapNode = useCallback(async () => {
     if (!editingMindMapNode) return
     const n = editingMindMapNode
+    const colors: Record<string, string> = { topic: '#10b981', concept: '#f59e0b', operation: '#3b82f6', article: '#8b5cf6' }
     await mindmap.updateNode(n.id, {
       title: n.title,
       htmlContent: n.htmlContent,
       markdownContent: n.markdownContent,
       richtextContent: n.richtextContent,
       contentType: n.contentType,
+      nodeType: n.nodeType,
+      color: colors[n.nodeType] || n.nodeType,
     } as Partial<MindMapNode>)
     if (selectedSystemId) await mindmap.fetchNodes(selectedSystemId)
     setEditingMindMapNode(null)
@@ -202,6 +294,28 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     if (selectedSystemId) await mindmap.fetchNodes(selectedSystemId)
   }, [mindmap, selectedSystemId])
 
+  const handleChangeParent = useCallback(async (nodeId: string, newParentId: string | null) => {
+    // 1. Remove old connection (parent → this node)
+    const oldConn = mindmap.connections.find(c => c.targetNodeId === nodeId)
+    if (oldConn) {
+      await mindmap.deleteConnection(oldConn.id)
+    }
+
+    // 2. Update node's parent_id
+    await mindmap.updateNode(nodeId, { parentId: newParentId } as Partial<MindMapNode>)
+
+    // 3. Create new connection (new parent → this node)
+    if (newParentId && selectedSystemId) {
+      await mindmap.createConnection(selectedSystemId, newParentId, nodeId)
+    }
+
+    // 4. Refresh
+    if (selectedSystemId) {
+      await mindmap.fetchNodes(selectedSystemId)
+      await mindmap.fetchConnections(selectedSystemId)
+    }
+  }, [mindmap, selectedSystemId])
+
   // --- Sidebar selection ---
   const onSelectCategory = useCallback((id: string | null) => {
     knowledge.selectCategory(id)
@@ -240,11 +354,12 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     onSystemEdit: handleSystemEdit,
     onSystemDelete: handleSystemDelete,
     handleUpdateMindMapNode,
+    handleChangeParent,
   }), [
     handleEdit, handleDelete, openCreateForm,
     handleNodeMove, handleAddNode, handleDeleteNode,
     handleMindMapNodeDblClick, handleSystemEdit, handleSystemDelete,
-    handleUpdateMindMapNode,
+    handleUpdateMindMapNode, handleChangeParent,
   ])
 
   return (
@@ -261,6 +376,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           onSelectSystem={onSelectSystem}
           onCreateSystem={onCreateSystem}
           onCreate={openCreateForm}
+          onCreateCategory={openCreateCategoryForm}
+          onEditCategory={openEditCategoryForm}
+          onDeleteCategory={handleDeleteCategory}
         />
 
         <main className="flex-1 overflow-y-auto">
@@ -289,6 +407,19 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
                 onChange={(e) => setEditingMindMapNode((prev) => prev ? { ...prev, title: e.target.value } : null)}
                 className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">节点类型</label>
+              <select
+                value={editingMindMapNode?.nodeType ?? 'topic'}
+                onChange={(e) => setEditingMindMapNode((prev) => prev ? { ...prev, nodeType: e.target.value } : null)}
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all"
+              >
+                <option value="topic">主题节点</option>
+                <option value="concept">概念节点</option>
+                <option value="operation">操作节点</option>
+                <option value="article">文章节点</option>
+              </select>
             </div>
             <div>
               <div className="flex items-center justify-between mb-1.5">
@@ -436,6 +567,108 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
               <button
                 className="px-5 py-2.5 text-sm font-medium rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors shadow-sm shadow-red-200"
                 onClick={confirmDelete}
+              >确认删除</button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Category create/edit modal */}
+        <Modal
+          open={showCategoryForm}
+          title={editingCategory ? '编辑分类' : '新建分类'}
+          onClose={() => { setShowCategoryForm(false); setEditingCategory(null) }}
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">名称</label>
+              <input
+                type="text"
+                value={categoryForm.name}
+                onChange={(e) => setCategoryForm((prev) => ({ ...prev, name: e.target.value }))}
+                placeholder="请输入分类名称"
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                onKeyUp={(e) => { if (e.key === 'Enter') handleCategoryFormSubmit() }}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">图标</label>
+              <div className="grid grid-cols-5 gap-2">
+                {CATEGORY_ICONS.map((icon) => (
+                  <button
+                    key={icon}
+                    type="button"
+                    className={`flex items-center justify-center p-2.5 rounded-xl border transition-all ${
+                      categoryForm.icon === icon
+                        ? 'border-blue-400 bg-blue-50 text-blue-600 shadow-sm'
+                        : 'border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
+                    }`}
+                    onClick={() => setCategoryForm((prev) => ({ ...prev, icon }))}
+                    title={icon}
+                  >
+                    {icon}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">颜色</label>
+              <div className="flex gap-2 flex-wrap">
+                {CATEGORY_COLORS.map((color, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    className={`w-8 h-8 rounded-full ${color.dot} transition-all ${
+                      categoryForm.colorIndex === idx
+                        ? 'ring-2 ring-offset-2 ring-blue-400 scale-110'
+                        : 'hover:scale-105'
+                    }`}
+                    onClick={() => setCategoryForm((prev) => ({ ...prev, colorIndex: idx }))}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">描述（可选）</label>
+              <textarea
+                value={categoryForm.description}
+                onChange={(e) => setCategoryForm((prev) => ({ ...prev, description: e.target.value }))}
+                rows={2}
+                placeholder="分类描述..."
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all resize-y"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-2">
+              <button
+                className="px-5 py-2.5 text-sm font-medium rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
+                onClick={() => { setShowCategoryForm(false); setEditingCategory(null) }}
+              >取消</button>
+              <button
+                disabled={!categoryForm.name.trim()}
+                className="px-5 py-2.5 text-sm font-medium rounded-xl bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm shadow-blue-200"
+                onClick={handleCategoryFormSubmit}
+              >{editingCategory ? '保存' : '创建'}</button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Category delete confirmation */}
+        <Modal open={!!deletingCategory} title="确认删除分类" onClose={() => setDeletingCategory(null)}>
+          <div className="space-y-4">
+            <p className="text-slate-600 text-sm">
+              确定要删除分类 <span className="font-semibold text-slate-800">&quot;{deletingCategory?.name}&quot;</span> 吗？此操作不可恢复。
+            </p>
+            <div className="flex justify-end gap-2.5">
+              <button
+                className="px-5 py-2.5 text-sm font-medium rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
+                onClick={() => setDeletingCategory(null)}
+              >取消</button>
+              <button
+                className="px-5 py-2.5 text-sm font-medium rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors shadow-sm shadow-red-200"
+                onClick={confirmDeleteCategory}
               >确认删除</button>
             </div>
           </div>
