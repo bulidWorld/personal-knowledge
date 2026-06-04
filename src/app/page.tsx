@@ -323,7 +323,7 @@ export default function Home() {
   // --- Render: MindMap canvas ---
   if (selectedSystemId && selectedSystemId !== '__all__') {
     return (
-      <div>
+      <div className="h-[calc(100vh-4rem)] flex flex-col">
         {focusedNode ? (
           <div className="h-[calc(100vh-6rem)]">
             <header className="mb-4">
@@ -456,7 +456,7 @@ export default function Home() {
           </div>
         ) : (
           <>
-            <header className="mb-4 flex items-center justify-between">
+            <header className="mb-4 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-3">
                 <button
                   className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 transition-colors"
@@ -466,18 +466,20 @@ export default function Home() {
                   <span>返回系统列表</span>
                 </button>
                 <span className="text-slate-300">|</span>
-                <span className="text-sm text-slate-500">双击节点查看详情 · 右键新增节点 · 拖拽移动 · 滚轮缩放</span>
+                <span className="text-sm text-slate-500">双击查看 · 右键新增 · 拖拽移动 · 滚轮缩放 · 空格+拖拽平移</span>
               </div>
             </header>
-            <MindMapCanvas
-              nodes={mindmap.nodes}
-              connections={mindmap.connections}
-              onNodeMove={app.handleNodeMove}
-              onNodeDblClick={showNodeDetail}
-              onAddNode={app.handleAddNode}
-              onDeleteNode={app.handleDeleteNode}
-              onChangeParent={app.handleChangeParent}
-            />
+            <div className="flex-1 min-h-0">
+              <MindMapCanvas
+                nodes={mindmap.nodes}
+                connections={mindmap.connections}
+                onNodeMove={app.handleNodeMove}
+                onNodeDblClick={showNodeDetail}
+                onAddNode={app.handleAddNode}
+                onDeleteNode={app.handleDeleteNode}
+                onChangeParent={app.handleChangeParent}
+              />
+            </div>
           </>
         )}
       </div>

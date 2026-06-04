@@ -81,7 +81,7 @@ export default function MindMapCanvas({
   // Spacebar tracking for canvas pan mode
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.code === 'Space' && !e.repeat) {
+      if (e.code === 'Space' && !e.repeat && e.target === document.body) {
         e.preventDefault()
         setSpaceHeld(true)
       }
@@ -98,6 +98,28 @@ export default function MindMapCanvas({
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keyup', onKeyUp)
     }
+  }, [])
+
+  // Attach wheel listener with passive:false to reliably prevent scroll
+  useEffect(() => {
+    const svg = svgRef.current
+    if (!svg) return
+
+    function onWheelNative(e: WheelEvent) {
+      e.preventDefault()
+      const scale = e.deltaY < 0 ? 0.9 : 1.1
+      const pt = svgPoint(e.clientX, e.clientY)
+      setViewBox((prev) => ({
+        w: prev.w * scale,
+        h: prev.h * scale,
+        x: pt.x - (pt.x - prev.x) * scale,
+        y: pt.y - (pt.y - prev.y) * scale,
+      }))
+    }
+
+    svg.addEventListener('wheel', onWheelNative, { passive: false })
+    return () => svg.removeEventListener('wheel', onWheelNative)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function svgPoint(clientX: number, clientY: number) {
@@ -190,7 +212,6 @@ export default function MindMapCanvas({
         onMouseDown={onPanStart}
         onMouseMove={onPanMove}
         onMouseUp={onPanEnd}
-        onWheel={onWheel}
         onDoubleClick={onCanvasDblClick}
         onContextMenu={(e) => e.preventDefault()}
       >
