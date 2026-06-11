@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import type { KnowledgeCategory } from '@/types/knowledge'
+import type { KnowledgeCategory, Tag } from '@/types/knowledge'
 import type { MindMapSystem } from '@/types/mindmap'
 import {
   Bot, Lightbulb, MessageSquareText, Terminal, Workflow,
-  LayoutGrid, BookOpen, Plus, Network, Pencil, Trash2,
+  LayoutGrid, BookOpen, Plus, Network, Pencil, Trash2, TagIcon,
 } from 'lucide-react'
 
 const iconMap: Record<string, React.ComponentType<{ size?: number }>> = {
@@ -21,27 +21,35 @@ interface AppSidebarProps {
   categories: KnowledgeCategory[]
   selectedCategoryId: string | null
   selectedSystemId: string | null
+  selectedTagId: string | null
   totalCount: number
   categoryCounts: Record<string, number>
+  tags: Tag[]
   systems: MindMapSystem[]
   onSelectCategory: (id: string | null) => void
   onSelectSystem: (id: string | null) => void
+  onSelectTag: (id: string | null) => void
   onCreateSystem: () => void
   onCreate: () => void
   onCreateCategory: () => void
   onEditCategory: (cat: KnowledgeCategory) => void
   onDeleteCategory: (cat: KnowledgeCategory) => void
+  onCreateTag: () => void
+  onEditTag: (tag: Tag) => void
+  onDeleteTag: (tag: Tag) => void
 }
 
 export default function AppSidebar({
-  categories, selectedCategoryId, selectedSystemId, totalCount,
-  categoryCounts, systems,
-  onSelectCategory, onSelectSystem, onCreateSystem, onCreate,
+  categories, selectedCategoryId, selectedSystemId, selectedTagId, totalCount,
+  categoryCounts, systems, tags,
+  onSelectCategory, onSelectSystem, onSelectTag, onCreateSystem, onCreate,
   onCreateCategory, onEditCategory, onDeleteCategory,
+  onCreateTag, onEditTag, onDeleteTag,
 }: AppSidebarProps) {
   const [hoveredCatId, setHoveredCatId] = useState<string | null>(null)
+  const [hoveredTagId, setHoveredTagId] = useState<string | null>(null)
   const systemCount = systems.length
-  const isAllSelected = !selectedCategoryId && !selectedSystemId
+  const isAllSelected = !selectedCategoryId && !selectedSystemId && !selectedTagId
 
   return (
     <aside className="flex flex-col h-full w-[260px] min-w-[260px] bg-white border-r border-slate-200">
@@ -124,6 +132,67 @@ export default function AppSidebar({
                   onClick={(e) => {
                     e.stopPropagation()
                     onDeleteCategory(cat)
+                  }}
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+
+        {/* Tags */}
+        <div className="pt-4 mt-2 border-t border-slate-100" />
+        <div className="flex items-center gap-1 px-3 pt-1 pb-1">
+          <p className="flex-1 text-xs font-semibold text-slate-400 uppercase tracking-wider">标签</p>
+          <button
+            className="flex items-center justify-center w-5 h-5 rounded-md text-slate-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+            title="新增标签"
+            onClick={onCreateTag}
+          >
+            <Plus size={13} />
+          </button>
+        </div>
+
+        {tags.map((tag) => (
+          <div
+            key={tag.id}
+            className="relative group"
+            onMouseEnter={() => setHoveredTagId(tag.id)}
+            onMouseLeave={() => setHoveredTagId(null)}
+          >
+            <button
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                selectedTagId === tag.id ? 'bg-slate-100 text-slate-900 shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+              }`}
+              onClick={() => onSelectTag(selectedTagId === tag.id ? null : tag.id)}
+            >
+              <span className="w-2 h-2 rounded-full flex-shrink-0 shadow-sm" style={{ backgroundColor: tag.color }} />
+              <TagIcon size={17} />
+              <span className="truncate">{tag.name}</span>
+              <span className={`ml-auto text-xs font-semibold px-1.5 py-0.5 rounded-full min-w-[22px] text-center ${
+                selectedTagId === tag.id ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-400'
+              }`}>{tag.entryCount ?? 0}</span>
+            </button>
+
+            {hoveredTagId === tag.id && (
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                <button
+                  className="flex items-center justify-center w-6 h-6 rounded-md text-slate-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                  title="编辑标签"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onEditTag(tag)
+                  }}
+                >
+                  <Pencil size={12} />
+                </button>
+                <button
+                  className="flex items-center justify-center w-6 h-6 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                  title="删除标签"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDeleteTag(tag)
                   }}
                 >
                   <Trash2 size={12} />

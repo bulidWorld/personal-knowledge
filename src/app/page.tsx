@@ -49,7 +49,7 @@ export default function Home() {
   const entryMdTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [entryEditForm, setEntryEditForm] = useState({
     title: '', htmlContent: '', markdownContent: '', richtextContent: '',
-    contentType: 'html' as string, categoryId: '',
+    contentType: 'html' as string, categoryId: '', tagIds: [] as string[],
   })
 
   const focusedGradient = focusedEntry?.gradient ?? 'bg-gradient-to-r from-slate-400 to-slate-500'
@@ -70,6 +70,7 @@ export default function Home() {
       richtextContent: e.richtextContent || '',
       contentType: e.contentType || 'html',
       categoryId: e.categoryId,
+      tagIds: e.tags?.map((t) => t.id) || [],
     })
     setEditingEntry(true)
   }
@@ -127,6 +128,7 @@ export default function Home() {
         richtextContent,
         contentType: entryEditForm.contentType,
         categoryId: entryEditForm.categoryId,
+        tagIds: entryEditForm.tagIds,
       }),
     })
     await knowledge.refresh()
@@ -566,6 +568,20 @@ export default function Home() {
             <button className="text-sm text-blue-500 hover:text-blue-700 font-medium" onClick={() => knowledge.setSearch('')}>清除</button>
           </div>
         )}
+
+        {knowledge.selectedTagId && !focusedEntry && (
+          <div className="mt-3 flex items-center gap-2">
+            {(() => {
+              const selectedTag = knowledge.tags.find((t) => t.id === knowledge.selectedTagId)
+              return (
+                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: (selectedTag?.color || '#6366f1') + '18', color: selectedTag?.color || '#6366f1' }}>
+                  标签: {selectedTag?.name || knowledge.selectedTagId}
+                  <button className="text-current opacity-60 hover:opacity-100" onClick={() => knowledge.selectTag(null)}>✕</button>
+                </span>
+              )
+            })()}
+          </div>
+        )}
       </header>
 
       {knowledge.status === 'loading' ? (
@@ -580,6 +596,24 @@ export default function Home() {
               <span className={`inline-block w-2 h-2 rounded-full ${focusedDotColor}`} />
               <span>{focusedCategoryName}</span>
             </div>
+
+            {focusedEntry.tags && focusedEntry.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-6">
+                {focusedEntry.tags.map((tag) => (
+                  <span
+                    key={tag.id}
+                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                    style={{
+                      backgroundColor: tag.color + '18',
+                      color: tag.color,
+                      border: `1px solid ${tag.color}33`,
+                    }}
+                  >
+                    {tag.name}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {!editingEntry ? (
               <>
@@ -629,6 +663,41 @@ export default function Home() {
                     ))}
                   </select>
                 </div>
+
+                {knowledge.tags.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">标签</label>
+                    <div className="flex flex-wrap gap-2">
+                      {knowledge.tags.map((tag) => {
+                        const isSelected = (entryEditForm.tagIds || []).includes(tag.id)
+                        return (
+                          <button
+                            key={tag.id}
+                            type="button"
+                            className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                              isSelected
+                                ? 'text-white shadow-sm'
+                                : 'text-slate-500 bg-slate-100 hover:bg-slate-200'
+                            }`}
+                            style={isSelected ? { backgroundColor: tag.color } : {}}
+                            onClick={() => {
+                              setEntryEditForm((prev) => {
+                                const current = prev.tagIds || []
+                                if (current.includes(tag.id)) {
+                                  return { ...prev, tagIds: current.filter((id) => id !== tag.id) }
+                                }
+                                return { ...prev, tagIds: [...current, tag.id] }
+                              })
+                            }}
+                          >
+                            {tag.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-sm font-medium text-slate-700">内容</label>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import type { KnowledgeCategory, KnowledgeFormData, ContentType } from '@/types/knowledge'
+import type { KnowledgeCategory, Tag, KnowledgeFormData, ContentType } from '@/types/knowledge'
 import { Bold, Italic, Strikethrough, List, ListOrdered, Code2, Terminal, Heading, Quote } from 'lucide-react'
 import Modal from './Modal'
 import { handleMarkdownImagePaste } from '@/lib/paste-image'
@@ -10,6 +10,7 @@ interface KnowledgeFormProps {
   open: boolean
   entry?: KnowledgeFormData | null
   categories: KnowledgeCategory[]
+  tags: Tag[]
   onSubmit: (data: KnowledgeFormData) => void
   onClose: () => void
 }
@@ -20,7 +21,7 @@ const modes: { key: ContentType; label: string }[] = [
   { key: 'markdown', label: 'Markdown' },
 ]
 
-export default function KnowledgeForm({ open, entry, categories, onSubmit, onClose }: KnowledgeFormProps) {
+export default function KnowledgeForm({ open, entry, categories, tags, onSubmit, onClose }: KnowledgeFormProps) {
   const [form, setForm] = useState<KnowledgeFormData>({
     id: undefined,
     title: '',
@@ -29,6 +30,7 @@ export default function KnowledgeForm({ open, entry, categories, onSubmit, onClo
     richtextContent: '',
     contentType: 'richtext',
     categoryId: '',
+    tagIds: [],
   })
   const editorRef = useRef<HTMLDivElement | null>(null)
   const mdTextareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -45,6 +47,7 @@ export default function KnowledgeForm({ open, entry, categories, onSubmit, onClo
         richtextContent: entry.richtextContent || '',
         contentType: entry.contentType || 'richtext',
         categoryId: entry.categoryId,
+        tagIds: entry.tagIds || [],
       })
     } else if (open) {
       setForm({
@@ -55,6 +58,7 @@ export default function KnowledgeForm({ open, entry, categories, onSubmit, onClo
         richtextContent: '',
         contentType: 'richtext',
         categoryId: '',
+        tagIds: [],
       })
     }
   }, [open, entry])
@@ -175,6 +179,16 @@ export default function KnowledgeForm({ open, entry, categories, onSubmit, onClo
     }
   }
 
+  function toggleTag(tagId: string) {
+    setForm((prev) => {
+      const current = prev.tagIds || []
+      if (current.includes(tagId)) {
+        return { ...prev, tagIds: current.filter((id) => id !== tagId) }
+      }
+      return { ...prev, tagIds: [...current, tagId] }
+    })
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const finalForm = form.contentType === 'richtext'
@@ -210,6 +224,32 @@ export default function KnowledgeForm({ open, entry, categories, onSubmit, onClo
             ))}
           </select>
         </div>
+
+        {tags.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">标签</label>
+            <div className="flex flex-wrap gap-2">
+              {tags.map((tag) => {
+                const isSelected = (form.tagIds || []).includes(tag.id)
+                return (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                      isSelected
+                        ? 'text-white shadow-sm'
+                        : 'text-slate-500 bg-slate-100 hover:bg-slate-200'
+                    }`}
+                    style={isSelected ? { backgroundColor: tag.color } : {}}
+                    onClick={() => toggleTag(tag.id)}
+                  >
+                    {tag.name}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         <div>
           <div className="flex items-center justify-between mb-1.5">

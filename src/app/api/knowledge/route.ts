@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
   const pageSize = Math.min(50, Math.max(1, Number(searchParams.get('pageSize')) || 9))
   const search = searchParams.get('search')?.trim() || ''
   const categoryId = searchParams.get('categoryId') || ''
+  const tagId = searchParams.get('tagId') || ''
 
   const whereClauses: string[] = []
   const params: unknown[] = []
@@ -16,6 +17,11 @@ export async function GET(request: NextRequest) {
   if (categoryId) {
     whereClauses.push('e.category_id = $' + (params.length + 1))
     params.push(categoryId)
+  }
+
+  if (tagId) {
+    whereClauses.push('e.id IN (SELECT entry_id FROM entry_tags WHERE tag_id = $' + (params.length + 1) + ')')
+    params.push(tagId)
   }
 
   if (search) {
@@ -36,7 +42,14 @@ export async function GET(request: NextRequest) {
   const offset = (page - 1) * pageSize
 
   const result = await db.query(
-    `SELECT e.*, c.name as category_name, c.icon, c.border_color, c.dot_color, c.gradient
+    `SELECT e.*, c.name as category_name, c.icon, c.border_color, c.dot_color, c.gradient,
+       COALESCE(
+         (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
+          FROM entry_tags et
+          JOIN tags t ON et.tag_id = t.id
+          WHERE et.entry_id = e.id),
+         '[]'::json
+       ) as tags
      FROM entries e
      JOIN categories c ON e.category_id = c.id
      ${whereSQL}
@@ -68,8 +81,25 @@ export async function POST(request: NextRequest) {
     [id, body.title.trim(), body.htmlContent || '', body.markdownContent || '', body.richtextContent || '', body.contentType || 'html', body.categoryId, body.iframeUrl || null, body.imageUrl || null, now, now]
   )
 
+  // Insert tag associations
+  if (Array.isArray(body.tagIds) && body.tagIds.length > 0) {
+    for (const tagId of body.tagIds) {
+      await db.query(
+        `INSERT INTO entry_tags (entry_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [id, tagId]
+      )
+    }
+  }
+
   const result = await db.query(
-    `SELECT e.*, c.name as category_name, c.icon, c.border_color, c.dot_color, c.gradient
+    `SELECT e.*, c.name as category_name, c.icon, c.border_color, c.dot_color, c.gradient,
+       COALESCE(
+         (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
+          FROM entry_tags et
+          JOIN tags t ON et.tag_id = t.id
+          WHERE et.entry_id = e.id),
+         '[]'::json
+       ) as tags
      FROM entries e
      JOIN categories c ON e.category_id = c.id
      WHERE e.id = $1`,

@@ -1,5 +1,12 @@
 export type ContentType = 'html' | 'markdown' | 'richtext'
 
+export interface Tag {
+  id: string
+  name: string
+  color: string
+  entryCount?: number
+}
+
 export interface KnowledgeEntry {
   id: string
   title: string
@@ -17,6 +24,7 @@ export interface KnowledgeEntry {
   borderColor?: string
   dotColor?: string
   gradient?: string
+  tags?: Tag[]
 }
 
 export interface KnowledgeCategory {
@@ -47,6 +55,7 @@ export interface KnowledgeFormData {
   categoryId: string
   iframeUrl?: string
   imageUrl?: string
+  tagIds?: string[]
 }
 
 export interface KnowledgeQuery {

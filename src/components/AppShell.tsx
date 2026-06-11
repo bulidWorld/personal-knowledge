@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import type { KnowledgeEntry, KnowledgeFormData, KnowledgeCategory, ContentType } from '@/types/knowledge'
+import type { KnowledgeEntry, KnowledgeFormData, KnowledgeCategory, Tag, ContentType } from '@/types/knowledge'
 import type { MindMapNode, MindMapSystem } from '@/types/mindmap'
 import { KnowledgeProvider, useKnowledge } from '@/hooks/knowledge-context'
 import { MindMapProvider, useMindMap } from '@/hooks/mindmap-context'
@@ -57,8 +57,20 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const [deletingCategory, setDeletingCategory] = useState<KnowledgeCategory | null>(null)
   const [categoryForm, setCategoryForm] = useState({ name: '', icon: 'LayoutGrid', description: '', colorIndex: 0 })
 
+  // --- Tag state ---
+  const [showTagForm, setShowTagForm] = useState(false)
+  const [editingTag, setEditingTag] = useState<Tag | null>(null)
+  const [deletingTag, setDeletingTag] = useState<Tag | null>(null)
+  const [tagForm, setTagForm] = useState({ name: '', color: '#6366f1' })
+
+  const TAG_COLORS = [
+    '#6366f1', '#10b981', '#f59e0b', '#0ea5e9', '#f43f5e',
+    '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#06b6d4',
+  ]
+
   // --- MindMap node edit ---
   const [editingMindMapNode, setEditingMindMapNode] = useState<EditingMindMapNode | null>(null)
+  const [pendingNewNode, setPendingNewNode] = useState<{ type: string; x: number; y: number; parentId: string | null } | null>(null)
   const nodeModalMdRef = useRef<HTMLTextAreaElement | null>(null)
 
   // --- Sidebar selection ---
@@ -92,6 +104,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       categoryId: entry.categoryId,
       iframeUrl: entry.iframeUrl || '',
       imageUrl: entry.imageUrl || '',
+      tagIds: entry.tags?.map((t) => t.id) || [],
     })
     setShowCreateForm(true)
   }, [])
@@ -115,6 +128,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       richtextContent: '',
       contentType: 'richtext' as ContentType,
       categoryId: knowledge.selectedCategoryId,
+      tagIds: [],
     } : null)
     setShowCreateForm(true)
   }, [knowledge.selectedCategoryId])
@@ -219,6 +233,43 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     }
   }, [deletingCategory, knowledge])
 
+  // --- Tag handlers ---
+  const openCreateTagForm = useCallback(() => {
+    setEditingTag(null)
+    setTagForm({ name: '', color: '#6366f1' })
+    setShowTagForm(true)
+  }, [])
+
+  const openEditTagForm = useCallback((tag: Tag) => {
+    setEditingTag(tag)
+    setTagForm({ name: tag.name, color: tag.color })
+    setShowTagForm(true)
+  }, [])
+
+  const handleTagFormSubmit = useCallback(async () => {
+    if (!tagForm.name.trim()) return
+    if (editingTag) {
+      await knowledge.updateTag(editingTag.id, { name: tagForm.name.trim(), color: tagForm.color })
+    } else {
+      await knowledge.createTag({ name: tagForm.name.trim(), color: tagForm.color })
+    }
+    setShowTagForm(false)
+    setEditingTag(null)
+  }, [tagForm, editingTag, knowledge])
+
+  const handleDeleteTag = useCallback((tag: Tag) => {
+    setDeletingTag(tag)
+  }, [])
+
+  const confirmDeleteTag = useCallback(async () => {
+    if (!deletingTag) return
+    const result = await knowledge.deleteTag(deletingTag.id)
+    if (!result.success) {
+      alert(result.error || '删除标签失败')
+    }
+    setDeletingTag(null)
+  }, [deletingTag, knowledge])
+
   // --- MindMap node edit ---
   const handleMindMapNodeDblClick = useCallback((node: MindMapNode) => {
     setEditingMindMapNode({
@@ -236,18 +287,41 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     if (!editingMindMapNode) return
     const n = editingMindMapNode
     const colors: Record<string, string> = { topic: '#10b981', concept: '#f59e0b', operation: '#3b82f6', article: '#8b5cf6' }
-    await mindmap.updateNode(n.id, {
-      title: n.title,
-      htmlContent: n.htmlContent,
-      markdownContent: n.markdownContent,
-      richtextContent: n.richtextContent,
-      contentType: n.contentType,
-      nodeType: n.nodeType,
-      color: colors[n.nodeType] || n.nodeType,
-    } as Partial<MindMapNode>)
-    if (selectedSystemId) await mindmap.fetchNodes(selectedSystemId)
+
+    if (pendingNewNode) {
+      // Creating a new node
+      const newNode = await mindmap.createNode({
+        systemId: selectedSystemId!,
+        title: n.title,
+        nodeType: n.nodeType,
+        parentId: pendingNewNode.parentId,
+        x: pendingNewNode.x,
+        y: pendingNewNode.y,
+        color: colors[n.nodeType] || '',
+        htmlContent: n.htmlContent,
+        markdownContent: n.markdownContent,
+        richtextContent: n.richtextContent,
+        contentType: n.contentType,
+      })
+      if (pendingNewNode.parentId) {
+        await mindmap.createConnection(selectedSystemId!, pendingNewNode.parentId, newNode.id)
+      }
+      setPendingNewNode(null)
+    } else {
+      // Updating an existing node
+      await mindmap.updateNode(n.id, {
+        title: n.title,
+        htmlContent: n.htmlContent,
+        markdownContent: n.markdownContent,
+        richtextContent: n.richtextContent,
+        contentType: n.contentType,
+        nodeType: n.nodeType,
+        color: colors[n.nodeType] || n.nodeType,
+      } as Partial<MindMapNode>)
+      if (selectedSystemId) await mindmap.fetchNodes(selectedSystemId)
+    }
     setEditingMindMapNode(null)
-  }, [editingMindMapNode, mindmap, selectedSystemId])
+  }, [editingMindMapNode, pendingNewNode, mindmap, selectedSystemId])
 
   const onNodeModalMarkdownPaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     if (nodeModalMdRef.current) {
@@ -259,6 +333,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
   const closeMindMapNodeEdit = useCallback(() => {
     setEditingMindMapNode(null)
+    setPendingNewNode(null)
   }, [])
 
   // --- Canvas interactions ---
@@ -269,21 +344,18 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const handleAddNode = useCallback(async (type: string, x: number, y: number, parentId: string | null) => {
     if (!selectedSystemId) return
     const typeNames: Record<string, string> = { topic: '新主题', concept: '新概念', operation: '新操作', article: '新文章' }
-    const colors: Record<string, string> = { topic: '#10b981', concept: '#f59e0b', operation: '#3b82f6', article: '#8b5cf6' }
-    const newNode = await mindmap.createNode({
-      systemId: selectedSystemId,
+    // Store creation params — the node won't be created until the user saves in the modal
+    setPendingNewNode({ type, x, y, parentId })
+    setEditingMindMapNode({
+      id: '',
       title: typeNames[type] || '新节点',
+      htmlContent: '',
+      markdownContent: '',
+      richtextContent: '',
+      contentType: 'html',
       nodeType: type,
-      parentId,
-      x,
-      y,
-      color: colors[type] || '',
     })
-
-    if (parentId) {
-      await mindmap.createConnection(selectedSystemId, parentId, newNode.id)
-    }
-  }, [selectedSystemId, mindmap])
+  }, [selectedSystemId])
 
   const handleDeleteNode = useCallback(async (id: string) => {
     await mindmap.deleteNode(id)
@@ -319,11 +391,19 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   // --- Sidebar selection ---
   const onSelectCategory = useCallback((id: string | null) => {
     knowledge.selectCategory(id)
+    knowledge.selectTag(null)
+    setSelectedSystemId(null)
+  }, [knowledge, setSelectedSystemId])
+
+  const onSelectTag = useCallback((id: string | null) => {
+    knowledge.selectTag(id)
+    knowledge.selectCategory(null)
     setSelectedSystemId(null)
   }, [knowledge, setSelectedSystemId])
 
   const onSelectSystem = useCallback((id: string | null) => {
     knowledge.selectCategory(null)
+    knowledge.selectTag(null)
     setSelectedSystemId(id)
   }, [knowledge, setSelectedSystemId])
 
@@ -369,16 +449,22 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           categories={knowledge.categories}
           selectedCategoryId={knowledge.selectedCategoryId}
           selectedSystemId={selectedSystemId}
+          selectedTagId={knowledge.selectedTagId}
           totalCount={knowledge.total}
           categoryCounts={knowledge.categoryCounts}
+          tags={knowledge.tags}
           systems={mindmap.systems}
           onSelectCategory={onSelectCategory}
           onSelectSystem={onSelectSystem}
+          onSelectTag={onSelectTag}
           onCreateSystem={onCreateSystem}
           onCreate={openCreateForm}
           onCreateCategory={openCreateCategoryForm}
           onEditCategory={openEditCategoryForm}
           onDeleteCategory={handleDeleteCategory}
+          onCreateTag={openCreateTagForm}
+          onEditTag={openEditTagForm}
+          onDeleteTag={handleDeleteTag}
         />
 
         <main className="flex-1 overflow-y-auto">
@@ -392,12 +478,13 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           open={showCreateForm}
           entry={editingEntry}
           categories={knowledge.categories}
+          tags={knowledge.tags}
           onSubmit={handleFormSubmit}
           onClose={closeForm}
         />
 
         {/* MindMap node edit modal */}
-        <Modal open={!!editingMindMapNode} title="编辑节点" onClose={closeMindMapNodeEdit}>
+        <Modal open={!!editingMindMapNode} title={editingMindMapNode?.id ? '编辑节点' : '新建节点'} onClose={closeMindMapNodeEdit}>
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">标题</label>
@@ -669,6 +756,77 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
               <button
                 className="px-5 py-2.5 text-sm font-medium rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors shadow-sm shadow-red-200"
                 onClick={confirmDeleteCategory}
+              >确认删除</button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Tag create/edit modal */}
+        <Modal
+          open={showTagForm}
+          title={editingTag ? '编辑标签' : '新建标签'}
+          onClose={() => { setShowTagForm(false); setEditingTag(null) }}
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">名称</label>
+              <input
+                type="text"
+                value={tagForm.name}
+                onChange={(e) => setTagForm((prev) => ({ ...prev, name: e.target.value }))}
+                placeholder="请输入标签名称"
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                onKeyUp={(e) => { if (e.key === 'Enter') handleTagFormSubmit() }}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">颜色</label>
+              <div className="flex gap-2 flex-wrap">
+                {TAG_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    className={`w-8 h-8 rounded-full transition-all ${
+                      tagForm.color === color
+                        ? 'ring-2 ring-offset-2 ring-blue-400 scale-110'
+                        : 'hover:scale-105'
+                    }`}
+                    style={{ backgroundColor: color }}
+                    onClick={() => setTagForm((prev) => ({ ...prev, color }))}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-2">
+              <button
+                className="px-5 py-2.5 text-sm font-medium rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
+                onClick={() => { setShowTagForm(false); setEditingTag(null) }}
+              >取消</button>
+              <button
+                disabled={!tagForm.name.trim()}
+                className="px-5 py-2.5 text-sm font-medium rounded-xl bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm shadow-blue-200"
+                onClick={handleTagFormSubmit}
+              >{editingTag ? '保存' : '创建'}</button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Tag delete confirmation */}
+        <Modal open={!!deletingTag} title="确认删除标签" onClose={() => setDeletingTag(null)}>
+          <div className="space-y-4">
+            <p className="text-slate-600 text-sm">
+              确定要删除标签 <span className="font-semibold text-slate-800">&quot;{deletingTag?.name}&quot;</span> 吗？此操作不可恢复。
+            </p>
+            <div className="flex justify-end gap-2.5">
+              <button
+                className="px-5 py-2.5 text-sm font-medium rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
+                onClick={() => setDeletingTag(null)}
+              >取消</button>
+              <button
+                className="px-5 py-2.5 text-sm font-medium rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors shadow-sm shadow-red-200"
+                onClick={confirmDeleteTag}
               >确认删除</button>
             </div>
           </div>

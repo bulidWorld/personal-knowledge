@@ -45,6 +45,24 @@ export default function KnowledgeCard({ entry, entryGradient, onEdit, onDelete, 
           {entry.title}
         </h3>
 
+        {entry.tags && entry.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {entry.tags.map((tag) => (
+              <span
+                key={tag.id}
+                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                style={{
+                  backgroundColor: tag.color + '18',
+                  color: tag.color,
+                  border: `1px solid ${tag.color}33`,
+                }}
+              >
+                {tag.name}
+              </span>
+            ))}
+          </div>
+        )}
+
         <div className="relative max-h-64 overflow-hidden">
           <div className="knowledge-content text-slate-500 text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: renderedContent }} />
           <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent pointer-events-none" />

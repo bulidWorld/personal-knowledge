@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react'
-import type { KnowledgeCategory, KnowledgeEntry, PaginatedResponse, KnowledgeFormData } from '@/types/knowledge'
+import type { KnowledgeCategory, KnowledgeEntry, Tag, PaginatedResponse, KnowledgeFormData } from '@/types/knowledge'
 
 function normalizeEntry(e: Record<string, unknown>): KnowledgeEntry {
   return {
@@ -21,6 +21,7 @@ function normalizeEntry(e: Record<string, unknown>): KnowledgeEntry {
     borderColor: (e.border_color ?? e.borderColor) as string | undefined,
     dotColor: (e.dot_color ?? e.dotColor) as string | undefined,
     gradient: e.gradient as string | undefined,
+    tags: Array.isArray(e.tags) ? (e.tags as Tag[]) : undefined,
   }
 }
 
@@ -29,14 +30,17 @@ interface KnowledgeContextValue {
   entries: KnowledgeEntry[]
   selectedCategoryId: string | null
   selectedCategory: KnowledgeCategory | null
+  selectedTagId: string | null
   searchQuery: string
   currentPage: number
   pageSize: number
   total: number
   totalPages: number
   categoryCounts: Record<string, number>
+  tags: Tag[]
   status: 'idle' | 'loading' | 'success' | 'error'
   selectCategory: (id: string | null) => void
+  selectTag: (id: string | null) => void
   setSearch: (q: string) => void
   goToPage: (p: number) => void
   createEntry: (form: KnowledgeFormData) => Promise<void>
@@ -45,6 +49,9 @@ interface KnowledgeContextValue {
   createCategory: (data: { name: string; icon: string; description: string; borderColor: string; dotColor: string; gradient: string }) => Promise<void>
   updateCategory: (id: string, data: { name: string; icon: string; description: string; borderColor: string; dotColor: string; gradient: string }) => Promise<void>
   deleteCategory: (id: string) => Promise<{ success: boolean; error?: string }>
+  createTag: (data: { name: string; color: string }) => Promise<void>
+  updateTag: (id: string, data: { name: string; color: string }) => Promise<void>
+  deleteTag: (id: string) => Promise<{ success: boolean; error?: string }>
   refresh: () => Promise<void>
 }
 
@@ -52,12 +59,14 @@ const KnowledgeContext = createContext<KnowledgeContextValue | null>(null)
 
 export function KnowledgeProvider({ children }: { children: React.ReactNode }) {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
+  const [selectedTagId, setSelectedTagId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 9
 
   const [entriesData, setEntriesData] = useState<PaginatedResponse<KnowledgeEntry> | null>(null)
   const [categoriesData, setCategoriesData] = useState<KnowledgeCategory[]>([])
+  const [tagsData, setTagsData] = useState<Tag[]>([])
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
 
   const fetchEntries = useCallback(async () => {
@@ -67,6 +76,7 @@ export function KnowledgeProvider({ children }: { children: React.ReactNode }) {
       params.set('page', String(currentPage))
       params.set('pageSize', String(pageSize))
       if (selectedCategoryId) params.set('categoryId', selectedCategoryId)
+      if (selectedTagId) params.set('tagId', selectedTagId)
       if (searchQuery.trim()) params.set('search', searchQuery.trim())
 
       const res = await fetch(`/api/knowledge?${params.toString()}`)
@@ -82,7 +92,7 @@ export function KnowledgeProvider({ children }: { children: React.ReactNode }) {
     } catch {
       setStatus('error')
     }
-  }, [currentPage, selectedCategoryId, searchQuery])
+  }, [currentPage, selectedCategoryId, selectedTagId, searchQuery])
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -101,6 +111,19 @@ export function KnowledgeProvider({ children }: { children: React.ReactNode }) {
     } catch { /* ignore */ }
   }, [])
 
+  const fetchTags = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tags')
+      const data = await res.json()
+      setTagsData(data.map((t: Record<string, unknown>) => ({
+        id: t.id as string,
+        name: t.name as string,
+        color: t.color as string,
+        entryCount: (t.entry_count ?? 0) as number,
+      })))
+    } catch { /* ignore */ }
+  }, [])
+
   useEffect(() => {
     fetchEntries()
   }, [fetchEntries])
@@ -109,9 +132,13 @@ export function KnowledgeProvider({ children }: { children: React.ReactNode }) {
     fetchCategories()
   }, [fetchCategories])
 
+  useEffect(() => {
+    fetchTags()
+  }, [fetchTags])
+
   const refresh = useCallback(async () => {
-    await Promise.all([fetchEntries(), fetchCategories()])
-  }, [fetchEntries, fetchCategories])
+    await Promise.all([fetchEntries(), fetchCategories(), fetchTags()])
+  }, [fetchEntries, fetchCategories, fetchTags])
 
   const entries = useMemo(() => entriesData?.entries ?? [], [entriesData])
   const total = useMemo(() => entriesData?.total ?? 0, [entriesData])
@@ -134,6 +161,11 @@ export function KnowledgeProvider({ children }: { children: React.ReactNode }) {
 
   const selectCategory = useCallback((id: string | null) => {
     setSelectedCategoryId(id)
+    setCurrentPage(1)
+  }, [])
+
+  const selectTag = useCallback((id: string | null) => {
+    setSelectedTagId(id)
     setCurrentPage(1)
   }, [])
 
@@ -197,19 +229,53 @@ export function KnowledgeProvider({ children }: { children: React.ReactNode }) {
     return { success: false, error: data.error || '删除失败' }
   }, [fetchCategories])
 
+  const createTag = useCallback(async (data: { name: string; color: string }) => {
+    await fetch('/api/tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    await fetchTags()
+  }, [fetchTags])
+
+  const updateTag = useCallback(async (id: string, data: { name: string; color: string }) => {
+    await fetch(`/api/tags/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    await fetchTags()
+  }, [fetchTags])
+
+  const deleteTag = useCallback(async (id: string): Promise<{ success: boolean; error?: string }> => {
+    const res = await fetch(`/api/tags/${id}`, { method: 'DELETE' })
+    const data = await res.json()
+    if (res.ok) {
+      await fetchTags()
+      if (selectedTagId === id) setSelectedTagId(null)
+      return { success: true }
+    }
+    return { success: false, error: data.error || '删除失败' }
+  }, [fetchTags, selectedTagId])
+
+  const tags = useMemo(() => tagsData, [tagsData])
+
   const value = useMemo<KnowledgeContextValue>(() => ({
     categories,
     entries,
     selectedCategoryId,
     selectedCategory,
+    selectedTagId,
     searchQuery,
     currentPage,
     pageSize,
     total,
     totalPages,
     categoryCounts,
+    tags,
     status,
     selectCategory,
+    selectTag,
     setSearch,
     goToPage,
     createEntry,
@@ -218,12 +284,15 @@ export function KnowledgeProvider({ children }: { children: React.ReactNode }) {
     createCategory,
     updateCategory,
     deleteCategory,
+    createTag,
+    updateTag,
+    deleteTag,
     refresh,
   }), [
-    categories, entries, selectedCategoryId, selectedCategory, searchQuery,
-    currentPage, total, totalPages, categoryCounts, status,
-    selectCategory, setSearch, goToPage, createEntry, updateEntry, deleteEntry,
-    createCategory, updateCategory, deleteCategory, refresh,
+    categories, entries, selectedCategoryId, selectedCategory, selectedTagId,
+    searchQuery, currentPage, total, totalPages, categoryCounts, tags, status,
+    selectCategory, selectTag, setSearch, goToPage, createEntry, updateEntry, deleteEntry,
+    createCategory, updateCategory, deleteCategory, createTag, updateTag, deleteTag, refresh,
   ])
 
   return (
