@@ -25,6 +25,34 @@ export default function MindMapNodeComp({
   const fillColor = node.color || defaultColors[node.nodeType] || '#94a3b8'
   const textColor = node.nodeType === 'topic' ? '#ffffff' : '#1e293b'
 
+  // Max chars per line for each node type (approximate, based on shape width / font-size)
+  const maxCharsPerLine: Record<string, number> = { topic: 5, concept: 4, article: 4, operation: 8 }
+
+  function wrapNodeText(text: string, nodeType: string): string[] {
+    const max = maxCharsPerLine[nodeType] || 5
+    const lines: string[] = []
+    let remaining = text
+    const maxLines = 2
+
+    for (let i = 0; i < maxLines && remaining.length > 0; i++) {
+      if (remaining.length <= max) {
+        lines.push(remaining)
+        remaining = ''
+      } else if (i === maxLines - 1) {
+        // Last line: truncate with ellipsis
+        lines.push(remaining.slice(0, max - 1) + '…')
+        remaining = ''
+      } else {
+        lines.push(remaining.slice(0, max))
+        remaining = remaining.slice(max)
+      }
+    }
+    return lines
+  }
+
+  const textLines = wrapNodeText(node.title, node.nodeType)
+  const isTruncated = textLines.join('') !== node.title
+
   function onDragStart(e: React.MouseEvent) {
     // Don't start dragging if spacebar is held (canvas pan mode)
     if (spaceHeld) return
@@ -86,6 +114,7 @@ export default function MindMapNodeComp({
       onDoubleClick={(e) => { e.stopPropagation(); onDblClick(node) }}
       onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); handleContextMenu(e) }}
     >
+      {isTruncated && <title>{node.title}</title>}
       {node.nodeType === 'operation' ? (
         <ellipse
           cx={node.x} cy={node.y}
@@ -115,12 +144,13 @@ export default function MindMapNodeComp({
         fontWeight={600}
         className="pointer-events-none"
       >
-        {node.title.length <= 8 ? (
-          <tspan x={node.x} dy={0}>{node.title}</tspan>
-        ) : (
+        {textLines.length === 1 && (
+          <tspan x={node.x} dy={0}>{textLines[0]}</tspan>
+        )}
+        {textLines.length === 2 && (
           <>
-            <tspan x={node.x} dy="-0.4em">{node.title.slice(0, 6)}</tspan>
-            <tspan x={node.x} dy="1.2em">{node.title.slice(6, 12)}</tspan>
+            <tspan x={node.x} dy="-0.4em">{textLines[0]}</tspan>
+            <tspan x={node.x} dy="1.2em">{textLines[1]}</tspan>
           </>
         )}
       </text>

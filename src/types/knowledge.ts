@@ -20,6 +20,8 @@ export interface KnowledgeEntry {
   createdAt: string
   updatedAt: string
   categoryName?: string
+  hotScore?: number
+  clickCount?: number
   icon?: string
   borderColor?: string
   dotColor?: string

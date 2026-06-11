@@ -10,15 +10,17 @@ interface KnowledgeCardProps {
   entryGradient: string
   onEdit: (entry: KnowledgeEntry) => void
   onDelete: (entry: KnowledgeEntry) => void
+  onClick: (entry: KnowledgeEntry) => void
   onDblClick: (entry: KnowledgeEntry) => void
 }
 
-export default function KnowledgeCard({ entry, entryGradient, onEdit, onDelete, onDblClick }: KnowledgeCardProps) {
+export default function KnowledgeCard({ entry, entryGradient, onEdit, onDelete, onClick, onDblClick }: KnowledgeCardProps) {
   const renderedContent = renderContent(entry)
 
   return (
     <article
       className="group relative rounded-2xl bg-white border border-slate-200/60 overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-slate-200/50 hover:-translate-y-0.5 cursor-pointer"
+      onClick={() => onClick(entry)}
       onDoubleClick={() => onDblClick(entry)}
     >
       <div className={`absolute top-0 left-0 w-full h-1 ${entryGradient}`} />
@@ -27,14 +29,20 @@ export default function KnowledgeCard({ entry, entryGradient, onEdit, onDelete, 
         <button
           className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-blue-500 hover:border-blue-200 hover:bg-blue-50 transition-colors shadow-sm"
           title="编辑"
-          onClick={() => onEdit(entry)}
+          onClick={(event) => {
+            event.stopPropagation()
+            onEdit(entry)
+          }}
         >
           <Pencil size={14} />
         </button>
         <button
           className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-colors shadow-sm"
           title="删除"
-          onClick={() => onDelete(entry)}
+          onClick={(event) => {
+            event.stopPropagation()
+            onDelete(entry)
+          }}
         >
           <Trash2 size={14} />
         </button>

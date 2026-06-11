@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import type { KnowledgeCategory, KnowledgeEntry, Tag, PaginatedResponse, KnowledgeFormData } from '@/types/knowledge'
 
 function normalizeEntry(e: Record<string, unknown>): KnowledgeEntry {
@@ -17,6 +17,8 @@ function normalizeEntry(e: Record<string, unknown>): KnowledgeEntry {
     createdAt: (e.created_at ?? e.createdAt) as string,
     updatedAt: (e.updated_at ?? e.updatedAt) as string,
     categoryName: (e.category_name ?? e.categoryName) as string | undefined,
+    hotScore: Number(e.hot_score ?? e.hotScore ?? 0),
+    clickCount: Number(e.click_count ?? e.clickCount ?? 0),
     icon: e.icon as string | undefined,
     borderColor: (e.border_color ?? e.borderColor) as string | undefined,
     dotColor: (e.dot_color ?? e.dotColor) as string | undefined,
@@ -52,6 +54,7 @@ interface KnowledgeContextValue {
   createTag: (data: { name: string; color: string }) => Promise<void>
   updateTag: (id: string, data: { name: string; color: string }) => Promise<void>
   deleteTag: (id: string) => Promise<{ success: boolean; error?: string }>
+  recordEntryClick: (id: string) => Promise<boolean>
   refresh: () => Promise<void>
 }
 
@@ -68,9 +71,10 @@ export function KnowledgeProvider({ children }: { children: React.ReactNode }) {
   const [categoriesData, setCategoriesData] = useState<KnowledgeCategory[]>([])
   const [tagsData, setTagsData] = useState<Tag[]>([])
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const clickRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const fetchEntries = useCallback(async () => {
-    setStatus('loading')
+  const fetchEntries = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setStatus('loading')
     try {
       const params = new URLSearchParams()
       params.set('page', String(currentPage))
@@ -135,6 +139,12 @@ export function KnowledgeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     fetchTags()
   }, [fetchTags])
+
+  useEffect(() => {
+    return () => {
+      if (clickRefreshTimerRef.current) clearTimeout(clickRefreshTimerRef.current)
+    }
+  }, [])
 
   const refresh = useCallback(async () => {
     await Promise.all([fetchEntries(), fetchCategories(), fetchTags()])
@@ -258,6 +268,25 @@ export function KnowledgeProvider({ children }: { children: React.ReactNode }) {
     return { success: false, error: data.error || '删除失败' }
   }, [fetchTags, selectedTagId])
 
+  const recordEntryClick = useCallback(async (id: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/knowledge/${id}/click`, { method: 'POST' })
+      if (!res.ok) return false
+      const data = await res.json()
+      if (data.counted) {
+        if (clickRefreshTimerRef.current) clearTimeout(clickRefreshTimerRef.current)
+        clickRefreshTimerRef.current = setTimeout(() => {
+          clickRefreshTimerRef.current = null
+          void fetchEntries({ silent: true })
+        }, 350)
+        return true
+      }
+      return false
+    } catch {
+      return false
+    }
+  }, [fetchEntries])
+
   const tags = useMemo(() => tagsData, [tagsData])
 
   const value = useMemo<KnowledgeContextValue>(() => ({
@@ -287,12 +316,14 @@ export function KnowledgeProvider({ children }: { children: React.ReactNode }) {
     createTag,
     updateTag,
     deleteTag,
+    recordEntryClick,
     refresh,
   }), [
     categories, entries, selectedCategoryId, selectedCategory, selectedTagId,
     searchQuery, currentPage, total, totalPages, categoryCounts, tags, status,
     selectCategory, selectTag, setSearch, goToPage, createEntry, updateEntry, deleteEntry,
     createCategory, updateCategory, deleteCategory, createTag, updateTag, deleteTag, refresh,
+    recordEntryClick,
   ])
 
   return (

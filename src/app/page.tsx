@@ -58,10 +58,20 @@ export default function Home() {
   const focusedRenderedContent = useMemo(() =>
     focusedEntry ? renderContent(focusedEntry) : '', [focusedEntry])
 
+  function recordEntryClick(entry: KnowledgeEntry) {
+    void knowledge.recordEntryClick(entry.id)
+  }
+
   function focusEntry(entry: KnowledgeEntry) { setFocusedEntry(entry) }
+
+  function editEntryFromList(entry: KnowledgeEntry) {
+    recordEntryClick(entry)
+    app.onEdit(entry)
+  }
 
   function startEditingEntry() {
     if (!focusedEntry) return
+    recordEntryClick(focusedEntry)
     const e = focusedEntry
     setEntryEditForm({
       title: e.title,
@@ -774,8 +784,9 @@ export default function Home() {
         <>
           <KnowledgeGrid
             entries={knowledge.entries}
-            onEdit={app.onEdit}
+            onEdit={editEntryFromList}
             onDelete={app.onDelete}
+            onClick={recordEntryClick}
             onDblClick={focusEntry}
           />
 

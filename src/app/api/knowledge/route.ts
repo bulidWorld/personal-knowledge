@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
+import { ensureEntryClickSchema, entryHotScoreSql } from '@/lib/hot-card'
 
 export async function GET(request: NextRequest) {
   const db = await getDb()
+  await ensureEntryClickSchema(db)
   const { searchParams } = request.nextUrl
 
   const page = Math.max(1, Number(searchParams.get('page')) || 1)
@@ -43,6 +45,8 @@ export async function GET(request: NextRequest) {
 
   const result = await db.query(
     `SELECT e.*, c.name as category_name, c.icon, c.border_color, c.dot_color, c.gradient,
+       h.hot_score,
+       h.click_count,
        COALESCE(
          (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
           FROM entry_tags et
@@ -52,8 +56,15 @@ export async function GET(request: NextRequest) {
        ) as tags
      FROM entries e
      JOIN categories c ON e.category_id = c.id
+     LEFT JOIN LATERAL (
+       SELECT
+         COALESCE(SUM(${entryHotScoreSql('ec')}), 0)::float as hot_score,
+         COUNT(ec.id)::int as click_count
+       FROM entry_clicks ec
+       WHERE ec.entry_id = e.id
+     ) h ON true
      ${whereSQL}
-     ORDER BY e.updated_at DESC
+     ORDER BY h.hot_score DESC, h.click_count DESC, e.updated_at DESC
      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     [...params, pageSize, offset]
   )

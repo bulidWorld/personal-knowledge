@@ -8,6 +8,7 @@ interface KnowledgeGridProps {
   entries: KnowledgeEntry[]
   onEdit: (entry: KnowledgeEntry) => void
   onDelete: (entry: KnowledgeEntry) => void
+  onClick: (entry: KnowledgeEntry) => void
   onDblClick: (entry: KnowledgeEntry) => void
 }
 
@@ -15,7 +16,7 @@ function getGradient(entry: KnowledgeEntry): string {
   return entry.gradient ?? 'bg-gradient-to-r from-slate-400 to-slate-500'
 }
 
-export default function KnowledgeGrid({ entries, onEdit, onDelete, onDblClick }: KnowledgeGridProps) {
+export default function KnowledgeGrid({ entries, onEdit, onDelete, onClick, onDblClick }: KnowledgeGridProps) {
   if (entries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-slate-400">
@@ -37,6 +38,7 @@ export default function KnowledgeGrid({ entries, onEdit, onDelete, onDblClick }:
           entryGradient={getGradient(entry)}
           onEdit={onEdit}
           onDelete={onDelete}
+          onClick={onClick}
           onDblClick={onDblClick}
         />
       ))}
