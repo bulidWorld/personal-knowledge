@@ -6,6 +6,7 @@ import type { MindMapSystem } from '@/types/mindmap'
 import {
   Bot, Lightbulb, MessageSquareText, Terminal, Workflow,
   LayoutGrid, BookOpen, Plus, Network, Pencil, Trash2, TagIcon,
+  Settings,
 } from 'lucide-react'
 
 const iconMap: Record<string, React.ComponentType<{ size?: number }>> = {
@@ -37,6 +38,8 @@ interface AppSidebarProps {
   onCreateTag: () => void
   onEditTag: (tag: Tag) => void
   onDeleteTag: (tag: Tag) => void
+  showDesktopSettings?: boolean
+  onOpenDesktopSettings?: () => void
 }
 
 export default function AppSidebar({
@@ -45,6 +48,7 @@ export default function AppSidebar({
   onSelectCategory, onSelectSystem, onSelectTag, onCreateSystem, onCreate,
   onCreateCategory, onEditCategory, onDeleteCategory,
   onCreateTag, onEditTag, onDeleteTag,
+  showDesktopSettings = false, onOpenDesktopSettings,
 }: AppSidebarProps) {
   const [hoveredCatId, setHoveredCatId] = useState<string | null>(null)
   const [hoveredTagId, setHoveredTagId] = useState<string | null>(null)
@@ -230,6 +234,15 @@ export default function AppSidebar({
 
       {/* Footer */}
       <div className="px-4 py-4 border-t border-slate-100">
+        {showDesktopSettings && (
+          <button
+            className="mb-2 w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-800 transition-colors"
+            onClick={onOpenDesktopSettings}
+          >
+            <Settings size={16} />
+            <span>数据库设置</span>
+          </button>
+        )}
         <button
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-blue-500 text-white hover:bg-blue-600 transition-colors shadow-sm shadow-blue-200"
           onClick={onCreate}

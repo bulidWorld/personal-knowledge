@@ -1,14 +1,15 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, type RefObject } from 'react'
 import { Search, X } from 'lucide-react'
 
 interface SearchBarProps {
   value: string
   onChange: (value: string) => void
+  inputRef?: RefObject<HTMLInputElement | null>
 }
 
-export default function SearchBar({ value, onChange }: SearchBarProps) {
+export default function SearchBar({ value, onChange, inputRef }: SearchBarProps) {
   const [immediateValue, setImmediateValue] = useState(value)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -40,6 +41,7 @@ export default function SearchBar({ value, onChange }: SearchBarProps) {
     <div className="relative">
       <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
       <input
+        ref={inputRef}
         type="text"
         value={immediateValue}
         placeholder="搜索知识条目..."

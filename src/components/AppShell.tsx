@@ -8,9 +8,13 @@ import { MindMapProvider, useMindMap } from '@/hooks/mindmap-context'
 import { AppProvider, useApp } from '@/hooks/app-context'
 import type { AppContextValue, EditingMindMapNode } from '@/hooks/app-context'
 import AppSidebar from './AppSidebar'
+import DatabaseSettingsDialog from './DatabaseSettingsDialog'
 import KnowledgeForm from './KnowledgeForm'
 import Modal from './Modal'
 import { handleMarkdownImagePaste } from '@/lib/paste-image'
+import { updateSystem } from '@/services/system-service'
+import { canUseDesktopSettings } from '@/services/settings-service'
+import { listenDesktopEvents } from '@/services/desktop-events'
 
 const CATEGORY_ICONS = [
   'Bot', 'Lightbulb', 'MessageSquareText', 'Terminal', 'Workflow',
@@ -62,6 +66,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const [editingTag, setEditingTag] = useState<Tag | null>(null)
   const [deletingTag, setDeletingTag] = useState<Tag | null>(null)
   const [tagForm, setTagForm] = useState({ name: '', color: '#6366f1' })
+  const [showDatabaseSettings, setShowDatabaseSettings] = useState(false)
+  const [showDesktopSettingsEntry, setShowDesktopSettingsEntry] = useState(false)
+  const [desktopNotice, setDesktopNotice] = useState<string | null>(null)
 
   const TAG_COLORS = [
     '#6366f1', '#10b981', '#f59e0b', '#0ea5e9', '#f43f5e',
@@ -154,11 +161,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
   const doRenameSystem = useCallback(async () => {
     if (!editingSystem || !renameSystemName.trim()) return
-    await fetch(`/api/systems/${editingSystem.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: renameSystemName.trim() }),
-    })
+    await updateSystem(editingSystem.id, { name: renameSystemName.trim() })
     await mindmap.fetchSystems()
     setEditingSystem(null)
   }, [editingSystem, renameSystemName, mindmap])
@@ -407,6 +410,50 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     setSelectedSystemId(id)
   }, [knowledge, setSelectedSystemId])
 
+  useEffect(() => {
+    setShowDesktopSettingsEntry(canUseDesktopSettings())
+  }, [])
+
+  useEffect(() => {
+    let cleanup: (() => void) | undefined
+
+    listenDesktopEvents({
+      onQuickSearch: () => window.dispatchEvent(new CustomEvent('knowledge:quick-search')),
+      onNewKnowledge: openCreateForm,
+      onClipboardSave: openCreateForm,
+      onOpenSettings: () => setShowDatabaseSettings(true),
+      onDatabaseOffline: (message) => {
+        setDesktopNotice(message || '数据库连接不可用，请检查配置')
+        setShowDatabaseSettings(true)
+      },
+    }).then((unlisten) => {
+      cleanup = unlisten
+    })
+
+    return () => cleanup?.()
+  }, [openCreateForm])
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const ctrlOrMeta = event.ctrlKey || event.metaKey
+      if (!ctrlOrMeta) return
+
+      if (event.shiftKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        window.dispatchEvent(new CustomEvent('knowledge:quick-search'))
+      } else if (!event.shiftKey && event.key.toLowerCase() === 'n') {
+        event.preventDefault()
+        openCreateForm()
+      } else if (event.key === ',') {
+        event.preventDefault()
+        if (canUseDesktopSettings()) setShowDatabaseSettings(true)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [openCreateForm])
+
   // --- Fetch systems on mount ---
   useEffect(() => {
     mindmap.fetchSystems()
@@ -465,10 +512,24 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           onCreateTag={openCreateTagForm}
           onEditTag={openEditTagForm}
           onDeleteTag={handleDeleteTag}
+          showDesktopSettings={showDesktopSettingsEntry}
+          onOpenDesktopSettings={() => setShowDatabaseSettings(true)}
         />
 
         <main className="flex-1 overflow-y-auto">
           <div className="px-6 py-8 md:px-8 md:py-10">
+            {desktopNotice && (
+              <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <span>{desktopNotice}</span>
+                <button
+                  type="button"
+                  className="text-xs font-medium text-amber-700 hover:text-amber-900"
+                  onClick={() => setDesktopNotice(null)}
+                >
+                  关闭
+                </button>
+              </div>
+            )}
             {children}
           </div>
         </main>
@@ -481,6 +542,11 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           tags={knowledge.tags}
           onSubmit={handleFormSubmit}
           onClose={closeForm}
+        />
+
+        <DatabaseSettingsDialog
+          open={showDatabaseSettings}
+          onClose={() => setShowDatabaseSettings(false)}
         />
 
         {/* MindMap node edit modal */}

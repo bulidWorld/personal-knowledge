@@ -2,35 +2,20 @@
 
 import { createContext, useContext, useState, useCallback, useRef } from 'react'
 import type { MindMapNode, MindMapConnection, MindMapSystem } from '@/types/mindmap'
-
-function normalizeNode(n: Record<string, unknown>): MindMapNode {
-  return {
-    id: n.id as string,
-    systemId: (n.system_id ?? n.systemId) as string,
-    title: n.title as string,
-    htmlContent: (n.html_content ?? n.htmlContent ?? '') as string,
-    markdownContent: (n.markdown_content ?? n.markdownContent ?? '') as string,
-    richtextContent: (n.richtext_content ?? n.richtextContent ?? '') as string,
-    contentType: (n.content_type ?? n.contentType ?? 'html') as MindMapNode['contentType'],
-    nodeType: (n.node_type ?? n.nodeType) as MindMapNode['nodeType'],
-    parentId: (n.parent_id ?? n.parentId ?? null) as string | null,
-    x: Number(n.x) || 400,
-    y: Number(n.y) || 300,
-    color: (n.color ?? '') as string,
-    createdAt: (n.created_at ?? n.createdAt) as string,
-    updatedAt: (n.updated_at ?? n.updatedAt) as string,
-  }
-}
-
-function normalizeConnection(c: Record<string, unknown>): MindMapConnection {
-  return {
-    id: c.id as string,
-    systemId: (c.system_id ?? c.systemId) as string,
-    sourceNodeId: (c.source_node_id ?? c.sourceNodeId) as string,
-    targetNodeId: (c.target_node_id ?? c.targetNodeId) as string,
-    createdAt: (c.created_at ?? c.createdAt) as string,
-  }
-}
+import {
+  createMindMapConnection,
+  createMindMapNode,
+  deleteMindMapConnection,
+  deleteMindMapNode,
+  listMindMapConnections,
+  listMindMapNodes,
+  updateMindMapNode,
+} from '@/services/mindmap-service'
+import {
+  createSystem as createSystemService,
+  deleteSystem as deleteSystemService,
+  listSystems,
+} from '@/services/system-service'
 
 interface MindMapContextValue {
   systems: MindMapSystem[]
@@ -63,47 +48,25 @@ export function MindMapProvider({ children }: { children: React.ReactNode }) {
   const [selectedSystemId, setSelectedSystemId] = useState<string | null>(null)
 
   const fetchSystems = useCallback(async () => {
-    const res = await fetch('/api/systems')
-    const data = await res.json()
-    setSystems(data.map((s: Record<string, unknown>) => ({
-      id: s.id,
-      name: s.name,
-      description: (s.description || '') as string,
-      icon: (s.icon || 'Network') as string,
-      borderColor: (s.border_color || s.borderColor || 'border-l-teal-500') as string,
-      dotColor: (s.dot_color || s.dotColor || 'bg-teal-500') as string,
-      gradient: (s.gradient || 'bg-gradient-to-r from-teal-400 to-teal-500') as string,
-      nodeCount: (s.node_count ?? s.nodeCount ?? 0) as number,
-      createdAt: (s.created_at || s.createdAt) as string,
-      updatedAt: (s.updated_at || s.updatedAt) as string,
-    })))
+    setSystems(await listSystems())
   }, [])
 
   const fetchNodes = useCallback(async (systemId: string) => {
-    const res = await fetch(`/api/mindmap/nodes?systemId=${systemId}`)
-    const data = await res.json()
-    setNodes(data.map(normalizeNode))
+    setNodes(await listMindMapNodes(systemId))
   }, [])
 
   const fetchConnections = useCallback(async (systemId: string) => {
-    const res = await fetch(`/api/mindmap/connections?systemId=${systemId}`)
-    const data = await res.json()
-    setConnections(data.map(normalizeConnection))
+    setConnections(await listMindMapConnections(systemId))
   }, [])
 
   const createSystem = useCallback(async (name: string) => {
-    const res = await fetch('/api/systems', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    })
-    const s = await res.json()
+    const s = await createSystemService({ name })
     await fetchSystems()
     return s
   }, [fetchSystems])
 
   const deleteSystem = useCallback(async (id: string) => {
-    await fetch(`/api/systems/${id}`, { method: 'DELETE' })
+    await deleteSystemService(id)
     await fetchSystems()
   }, [fetchSystems])
 
@@ -112,13 +75,7 @@ export function MindMapProvider({ children }: { children: React.ReactNode }) {
     x?: number; y?: number; color?: string
     htmlContent?: string; markdownContent?: string; richtextContent?: string; contentType?: string
   }): Promise<MindMapNode> => {
-    const res = await fetch('/api/mindmap/nodes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(partial),
-    })
-    const raw = await res.json()
-    const newNode = normalizeNode(raw)
+    const newNode = await createMindMapNode(partial)
 
     // Optimistic: add new node to local state immediately
     setNodes(prev => [...prev, newNode])
@@ -150,34 +107,26 @@ export function MindMapProvider({ children }: { children: React.ReactNode }) {
       const merged = pendingMerged.current.get(id) || {}
       pendingMerged.current.delete(id)
       pendingTimers.current.delete(id)
-      await fetch(`/api/mindmap/nodes/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(merged),
-      })
+      await updateMindMapNode(id, merged as Partial<MindMapNode>)
     }, 200)
 
     pendingTimers.current.set(id, timer)
   }, [])
 
   const deleteNode = useCallback(async (id: string) => {
-    await fetch(`/api/mindmap/nodes/${id}`, { method: 'DELETE' })
+    await deleteMindMapNode(id)
     if (selectedSystemId) {
       await Promise.all([fetchNodes(selectedSystemId), fetchConnections(selectedSystemId)])
     }
   }, [selectedSystemId, fetchNodes, fetchConnections])
 
   const createConnection = useCallback(async (systemId: string, sourceNodeId: string, targetNodeId: string) => {
-    await fetch('/api/mindmap/connections', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ systemId, sourceNodeId, targetNodeId }),
-    })
+    await createMindMapConnection({ systemId, sourceNodeId, targetNodeId })
     await fetchConnections(systemId)
   }, [fetchConnections])
 
   const deleteConnection = useCallback(async (id: string) => {
-    await fetch(`/api/mindmap/connections/${id}`, { method: 'DELETE' })
+    await deleteMindMapConnection(id)
     if (selectedSystemId) {
       await fetchConnections(selectedSystemId)
     }

@@ -15,6 +15,9 @@ import Pagination from '@/components/Pagination'
 import IframeEmbed from '@/components/IframeEmbed'
 import MindMapCanvas from '@/components/MindMapCanvas'
 import SystemCardGrid from '@/components/SystemCardGrid'
+import { updateKnowledge } from '@/services/knowledge-service'
+import { recordRecentKnowledge } from '@/services/settings-service'
+import { isTauriRuntime } from '@/services/runtime'
 
 const contentModes = [
   { key: 'richtext' as ContentType, label: '富文本' },
@@ -41,6 +44,7 @@ export default function Home() {
   const selectedSystemId = mindmap.selectedSystemId
   const setSelectedSystemId = mindmap.setSelectedSystemId
   const showSystemGrid = selectedSystemId === '__all__'
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
 
   // --- Knowledge entry detail ---
   const [focusedEntry, setFocusedEntry] = useState<KnowledgeEntry | null>(null)
@@ -62,7 +66,12 @@ export default function Home() {
     void knowledge.recordEntryClick(entry.id)
   }
 
-  function focusEntry(entry: KnowledgeEntry) { setFocusedEntry(entry) }
+  function focusEntry(entry: KnowledgeEntry) {
+    setFocusedEntry(entry)
+    if (isTauriRuntime()) {
+      void recordRecentKnowledge(entry.id)
+    }
+  }
 
   function editEntryFromList(entry: KnowledgeEntry) {
     recordEntryClick(entry)
@@ -128,18 +137,14 @@ export default function Home() {
     setFocusedEntry(updatedEntry)
     setEditingEntry(false)
 
-    await fetch(`/api/knowledge/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: entryEditForm.title,
-        htmlContent: entryEditForm.htmlContent,
-        markdownContent: entryEditForm.markdownContent,
-        richtextContent,
-        contentType: entryEditForm.contentType,
-        categoryId: entryEditForm.categoryId,
-        tagIds: entryEditForm.tagIds,
-      }),
+    await updateKnowledge(id, {
+      title: entryEditForm.title,
+      htmlContent: entryEditForm.htmlContent,
+      markdownContent: entryEditForm.markdownContent,
+      richtextContent,
+      contentType: entryEditForm.contentType as ContentType,
+      categoryId: entryEditForm.categoryId,
+      tagIds: entryEditForm.tagIds,
     })
     await knowledge.refresh()
   }
@@ -331,6 +336,17 @@ export default function Home() {
   function backToSystems() {
     setSelectedSystemId(null)
   }
+
+  useEffect(() => {
+    function handleQuickSearch() {
+      if (focusedEntry) setFocusedEntry(null)
+      setSelectedSystemId(null)
+      setTimeout(() => searchInputRef.current?.focus(), 0)
+    }
+
+    window.addEventListener('knowledge:quick-search', handleQuickSearch)
+    return () => window.removeEventListener('knowledge:quick-search', handleQuickSearch)
+  }, [focusedEntry, setSelectedSystemId])
 
   // --- Render: MindMap canvas ---
   if (selectedSystemId && selectedSystemId !== '__all__') {
@@ -558,7 +574,11 @@ export default function Home() {
           {!focusedEntry && (
             <div className="flex items-center gap-3 flex-shrink-0">
               <div className="w-64">
-                <SearchBar value={knowledge.searchQuery} onChange={knowledge.setSearch} />
+                <SearchBar
+                  value={knowledge.searchQuery}
+                  onChange={knowledge.setSearch}
+                  inputRef={searchInputRef}
+                />
               </div>
               <button
                 className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl bg-blue-500 text-white hover:bg-blue-600 transition-colors shadow-sm shadow-blue-200"

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Personal Knowledge Desktop",
+  "version": "0.1.0",
+  "identifier": "com.bulidworld.personal-knowledge-desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev:desktop:before",
+    "devUrl": "http://localhost:3006",
+    "beforeBuildCommand": "npm run build:next:desktop",
+    "frontendDist": "../.next-desktop"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Personal Knowledge Desktop",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1024,
+        "minHeight": 700,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb", "rpm", "appimage", "nsis", "msi"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": true,
+        "languages": ["English", "SimpChinese"]
+      },
+      "wix": {
+        "language": ["en-US", "zh-CN"]
+      }
+    }
+  }
+}

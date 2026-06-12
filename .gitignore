@@ -1,7 +1,13 @@
 # Next.js build outputs
 .next
+.next-desktop
 .cache
 dist
+out
+tsconfig.tsbuildinfo
+
+# Tauri/Rust build outputs
+src-tauri/target
 
 # Node dependencies
 node_modules

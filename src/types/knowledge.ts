@@ -22,6 +22,8 @@ export interface KnowledgeEntry {
   categoryName?: string
   hotScore?: number
   clickCount?: number
+  isFavorite?: boolean
+  isPinned?: boolean
   icon?: string
   borderColor?: string
   dotColor?: string
@@ -37,6 +39,7 @@ export interface KnowledgeCategory {
   dotColor: string
   gradient: string
   description: string
+  entryCount?: number
 }
 
 export interface PaginatedResponse<T> {
@@ -65,4 +68,8 @@ export interface KnowledgeQuery {
   pageSize?: number
   search?: string
   categoryId?: string
+  tagId?: string
+  systemId?: string
+  favorite?: boolean
+  pinned?: boolean
 }

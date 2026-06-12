@@ -1,5 +1,7 @@
 'use client'
 
+import { uploadImage } from '@/services/file-service'
+
 /**
  * Handles image paste in markdown textareas.
  *
@@ -33,10 +35,7 @@ export async function handleMarkdownImagePaste(
       onValueChange(newValue)
 
       try {
-        const formData = new FormData()
-        formData.append('file', file)
-        const res = await fetch('/api/upload', { method: 'POST', body: formData })
-        const data = await res.json()
+        const data = await uploadImage(file)
 
         if (data.url) {
           const imgMd = `![](${data.url})`

@@ -5,11 +5,19 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev -p 3006",
+    "dev:web": "next dev -p 3006",
+    "dev:desktop:before": "node scripts/tauri-before-dev.mjs",
+    "dev:desktop": "tauri dev",
     "start": "next start -p 3006",
     "lint": "next lint",
-    "migrate:pg": "npx tsx scripts/migrate-sqlite-to-pg.ts"
+    "migrate:pg": "npx tsx scripts/migrate-sqlite-to-pg.ts",
+    "build:web": "cross-env BUILD_TARGET=web next build",
+    "start:web": "next start -p 3006",
+    "build:next:desktop": "cross-env BUILD_TARGET=desktop next build",
+    "build:desktop": "tauri build"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.11.0",
     "lucide-react": "^0.554.0",
     "marked": "^18.0.4",
     "next": "^15.5.9",
@@ -19,9 +27,11 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
+    "@tauri-apps/cli": "^2.11.2",
     "@types/pg": "^8.20.0",
     "@types/react": "^19.1.15",
     "@types/react-dom": "^19.1.11",
+    "cross-env": "^10.1.0",
     "postcss": "^8.5.15",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3"

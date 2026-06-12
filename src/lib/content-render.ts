@@ -1,6 +1,7 @@
 import { marked } from 'marked'
 import type { KnowledgeEntry } from '@/types/knowledge'
 import type { MindMapNode } from '@/types/mindmap'
+import { rewriteFileUrls } from '@/lib/file-url'
 
 marked.setOptions({ breaks: true })
 
@@ -79,7 +80,7 @@ function renderRaw(html: string, markdown: string, richtext: string, contentType
     htmlOut = formatJsonCodeBlocks(htmlOut)
     // Add referrerpolicy="no-referrer" to all img tags to avoid hotlinking 403
     htmlOut = htmlOut.replace(/<img /g, '<img referrerpolicy="no-referrer" ')
-    return htmlOut.replace(
+    return rewriteFileUrls(htmlOut.replace(
       /<(p|li|h[1-6])([^>]*)>(.*?)<\/\1>/gs,
       (match, tag, attrs, content) => {
         let color = ''
@@ -91,7 +92,7 @@ function renderRaw(html: string, markdown: string, richtext: string, contentType
           : `${attrs} class="${color}"`
         return `<${tag}${cls}>${content}</${tag}>`
       },
-    )
+    ))
   }
-  return raw || ''
+  return rewriteFileUrls(raw || '')
 }
