@@ -14,7 +14,8 @@
     "build:web": "cross-env BUILD_TARGET=web next build",
     "start:web": "next start -p 3006",
     "build:next:desktop": "cross-env BUILD_TARGET=desktop next build",
-    "build:desktop": "tauri build"
+    "build:desktop": "tauri build",
+    "build:windows": "tauri build --target x86_64-pc-windows-msvc --bundles nsis,msi"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",

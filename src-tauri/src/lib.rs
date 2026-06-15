@@ -14,6 +14,7 @@ use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     protocols::file::register(tauri::Builder::default())
+        .plugin(desktop::build_global_shortcut_plugin())
         .menu(desktop::build_menu)
         .on_menu_event(|app, event| desktop::handle_menu_event(app, event.id().0.as_str()))
         .on_window_event(desktop::handle_window_event)

@@ -1,8 +1,10 @@
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
+    plugin::TauriPlugin,
     tray::TrayIconBuilder,
     App, Emitter, Manager, Runtime, WindowEvent,
 };
+use tauri_plugin_global_shortcut::ShortcutState;
 
 use crate::{app_state::AppState, db, files::storage};
 
@@ -11,6 +13,15 @@ const EVENT_NEW_KNOWLEDGE: &str = "desktop:new-knowledge";
 const EVENT_CLIPBOARD_SAVE: &str = "desktop:clipboard-save";
 const EVENT_OPEN_SETTINGS: &str = "desktop:open-settings";
 const EVENT_DB_OFFLINE: &str = "desktop:db-offline";
+const SHOW_MAIN_SHORTCUT: &str = "Ctrl+Alt+K";
+
+fn show_main_window<R: Runtime>(app: &tauri::AppHandle<R>) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
 
 fn emit_menu_event<R: Runtime>(app: &tauri::AppHandle<R>, id: &str) {
     match id {
@@ -26,15 +37,22 @@ fn emit_menu_event<R: Runtime>(app: &tauri::AppHandle<R>, id: &str) {
         "open-settings" => {
             let _ = app.emit(EVENT_OPEN_SETTINGS, ());
         }
-        "show-main" => {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
-        }
+        "show-main" => show_main_window(app),
         "quit" => app.exit(0),
         _ => {}
     }
+}
+
+pub fn build_global_shortcut_plugin<R: Runtime>() -> TauriPlugin<R> {
+    tauri_plugin_global_shortcut::Builder::new()
+        .with_shortcut(SHOW_MAIN_SHORTCUT)
+        .expect("failed to configure global show-main shortcut")
+        .with_handler(|app, _shortcut, event| {
+            if event.state == ShortcutState::Pressed {
+                show_main_window(app);
+            }
+        })
+        .build()
 }
 
 pub fn build_menu<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>> {
